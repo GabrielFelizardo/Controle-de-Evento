@@ -26,6 +26,7 @@
             --white: #ffffff;
             --accent-success: #00cc44;
             --accent-danger: #ff3333;
+            --accent-primary: #0066ff;
             --font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
             --font-weight-regular: 400;
             --font-weight-medium: 500;
@@ -52,10 +53,117 @@
             -webkit-font-smoothing: antialiased;
         }
 
+        /* MENU BAR */
+        .menu-bar {
+            background: var(--black);
+            border-bottom: 3px solid var(--black);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .menu-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            padding: 0 var(--space-2);
+        }
+
+        .menu-items {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .menu-item {
+            position: relative;
+        }
+
+        .menu-button {
+            padding: var(--space-2) var(--space-3);
+            background: transparent;
+            border: none;
+            color: var(--white);
+            font-size: 13px;
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-family);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: background 0.2s;
+        }
+
+        .menu-button:hover {
+            background: var(--gray-900);
+        }
+
+        .menu-button.active {
+            background: var(--gray-800);
+        }
+
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--white);
+            border: 2px solid var(--black);
+            min-width: 220px;
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown.active {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: var(--space-2) var(--space-3);
+            background: var(--white);
+            border: none;
+            border-bottom: 1px solid var(--gray-200);
+            width: 100%;
+            text-align: left;
+            font-size: 13px;
+            font-weight: var(--font-weight-medium);
+            font-family: var(--font-family);
+            cursor: pointer;
+            color: var(--gray-900);
+            transition: background 0.15s;
+        }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item:hover {
+            background: var(--gray-100);
+        }
+
+        .dropdown-item.danger {
+            color: var(--accent-danger);
+        }
+
+        .dropdown-item.danger:hover {
+            background: var(--accent-danger);
+            color: var(--white);
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--gray-300);
+            margin: var(--space-1) 0;
+        }
+
+        .dropdown-item .shortcut {
+            float: right;
+            color: var(--gray-500);
+            font-size: 11px;
+        }
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: var(--space-8) var(--space-4);
+            padding: var(--space-6) var(--space-4);
         }
 
         .heading-1 {
@@ -92,11 +200,6 @@
             margin-bottom: var(--space-6);
             padding-bottom: var(--space-4);
             border-bottom: 3px solid var(--black);
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            flex-wrap: wrap;
-            gap: var(--space-3);
         }
 
         .auto-save {
@@ -461,6 +564,10 @@
             box-shadow: 2px 0 8px rgba(255, 51, 51, 0.5);
         }
 
+        .guest-card.compact {
+            padding: var(--space-2);
+        }
+
         .guest-name {
             font-size: 18px;
             font-weight: var(--font-weight-bold);
@@ -468,6 +575,7 @@
             display: flex;
             align-items: center;
             gap: var(--space-2);
+            flex-wrap: wrap;
         }
 
         .status-badge {
@@ -649,6 +757,12 @@
             padding: var(--space-5);
             max-width: 600px;
             width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-content.large {
+            max-width: 900px;
         }
 
         .modal-header {
@@ -764,7 +878,7 @@
         }
 
         @media print {
-            .header-actions, .tabs-wrapper, .choice-section,
+            .menu-bar, .header-actions, .tabs-wrapper, .choice-section,
             .import-section, .manual-section, .search-input,
             .guest-actions, .footer-actions, .btn, .modal {
                 display: none !important;
@@ -798,18 +912,99 @@
         .stat-card:nth-child(2) { animation-delay: 0.2s; opacity: 0; animation-fill-mode: forwards; }
         .stat-card:nth-child(3) { animation-delay: 0.3s; opacity: 0; animation-fill-mode: forwards; }
         .stat-card:nth-child(4) { animation-delay: 0.4s; opacity: 0; animation-fill-mode: forwards; }
+
+        /* Checkbox para seleção */
+        .guest-checkbox {
+            width: 20px;
+            height: 20px;
+            margin-right: var(--space-2);
+        }
     </style>
 </head>
 <body>
+    <!-- MENU BAR -->
+    <nav class="menu-bar">
+        <div class="menu-container">
+            <div class="menu-items">
+                <!-- ARQUIVO -->
+                <div class="menu-item">
+                    <button class="menu-button" onclick="toggleMenu(this)">📁 Arquivo</button>
+                    <div class="dropdown">
+                        <button class="dropdown-item" onclick="showModal('new-event-modal'); closeAllMenus()">Novo Evento</button>
+                        <button class="dropdown-item" onclick="saveData(); alert('✓ Salvo!'); closeAllMenus()">Salvar <span class="shortcut">Ctrl+S</span></button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="exportPDF(); closeAllMenus()">Exportar PDF</button>
+                        <button class="dropdown-item" onclick="exportTXT(); closeAllMenus()">Exportar TXT</button>
+                        <button class="dropdown-item" onclick="exportCSV(); closeAllMenus()">Exportar CSV</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="window.print(); closeAllMenus()">Imprimir <span class="shortcut">Ctrl+P</span></button>
+                        <button class="dropdown-item" onclick="duplicateEvent(); closeAllMenus()">Duplicar Evento</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item danger" onclick="clearAllData(); closeAllMenus()">Limpar Tudo</button>
+                    </div>
+                </div>
+
+                <!-- EDITAR -->
+                <div class="menu-item">
+                    <button class="menu-button" onclick="toggleMenu(this)">✏️ Editar</button>
+                    <div class="dropdown">
+                        <button class="dropdown-item" onclick="showQuickAdd(); closeAllMenus()">Adicionar Rápido</button>
+                        <button class="dropdown-item" onclick="showBulkEdit(); closeAllMenus()">Editar em Lote</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="selectAll(); closeAllMenus()">Selecionar Todos</button>
+                        <button class="dropdown-item" onclick="confirmAll(); closeAllMenus()">Confirmar Todos</button>
+                        <button class="dropdown-item" onclick="rejectAll(); closeAllMenus()">Recusar Todos</button>
+                        <button class="dropdown-item" onclick="resetAll(); closeAllMenus()">Resetar Status</button>
+                    </div>
+                </div>
+
+                <!-- VISUALIZAR -->
+                <div class="menu-item">
+                    <button class="menu-button" onclick="toggleMenu(this)">👁 Visualizar</button>
+                    <div class="dropdown">
+                        <button class="dropdown-item" onclick="toggleCompactMode(); closeAllMenus()">Modo Compacto</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="filterView('all'); closeAllMenus()">Mostrar: Todos</button>
+                        <button class="dropdown-item" onclick="filterView('yes'); closeAllMenus()">Mostrar: Confirmados</button>
+                        <button class="dropdown-item" onclick="filterView('no'); closeAllMenus()">Mostrar: Recusas</button>
+                        <button class="dropdown-item" onclick="filterView('pending'); closeAllMenus()">Mostrar: Pendentes</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="sortBy('name'); closeAllMenus()">Ordenar: Nome A-Z</button>
+                        <button class="dropdown-item" onclick="sortBy('status'); closeAllMenus()">Ordenar: Status</button>
+                    </div>
+                </div>
+
+                <!-- FERRAMENTAS -->
+                <div class="menu-item">
+                    <button class="menu-button" onclick="toggleMenu(this)">🔧 Ferramentas</button>
+                    <div class="dropdown">
+                        <button class="dropdown-item" onclick="showDetailedStats(); closeAllMenus()">Estatísticas Detalhadas</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="backupData(); closeAllMenus()">Backup (Download)</button>
+                        <button class="dropdown-item" onclick="showRestore(); closeAllMenus()">Restaurar Backup</button>
+                    </div>
+                </div>
+
+                <!-- AJUDA -->
+                <div class="menu-item">
+                    <button class="menu-button" onclick="toggleMenu(this)">❓ Ajuda</button>
+                    <div class="dropdown">
+                        <button class="dropdown-item" onclick="showHelp(); closeAllMenus()">Como Usar</button>
+                        <button class="dropdown-item" onclick="showShortcuts(); closeAllMenus()">Atalhos de Teclado</button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="showAbout(); closeAllMenus()">Sobre o Sistema</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
     <div class="container">
         <header class="header">
             <div>
                 <h1 class="heading-1">CONTROLE DE PRESENÇA</h1>
                 <p class="label">Sistema de Gestão de Eventos</p>
                 <span class="auto-save" id="auto-save">✓ AUTO-SALVO</span>
-            </div>
-            <div>
-                <button class="btn" onclick="clearAllData()">🗑 LIMPAR TUDO</button>
             </div>
         </header>
 
@@ -820,7 +1015,7 @@
         <div id="event-content"></div>
     </div>
 
-    <!-- Modals -->
+    <!-- MODALS -->
     <div class="modal" id="confirm-modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -867,12 +1062,144 @@
         </div>
     </div>
 
+    <div class="modal" id="quick-add-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">ADICIONAR RÁPIDO</h2>
+            </div>
+            <div id="quick-add-fields"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('quick-add-modal')">CANCELAR</button>
+                <button class="btn btn-success" onclick="saveQuickAdd()">ADICIONAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="bulk-edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">EDITAR EM LOTE</h2>
+            </div>
+            <p>Aplique uma ação para todos os convidados selecionados:</p>
+            <div style="margin: var(--space-3) 0;">
+                <button class="btn btn-success" onclick="bulkAction('yes')" style="width: 100%; margin-bottom: var(--space-2);">✓ CONFIRMAR SELECIONADOS</button>
+                <button class="btn btn-danger" onclick="bulkAction('no')" style="width: 100%; margin-bottom: var(--space-2);">✗ RECUSAR SELECIONADOS</button>
+                <button class="btn" onclick="bulkAction('reset')" style="width: 100%;">⟲ RESETAR SELECIONADOS</button>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('bulk-edit-modal')" style="grid-column: 1 / -1;">FECHAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="stats-modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2 class="modal-title">📊 ESTATÍSTICAS DETALHADAS</h2>
+            </div>
+            <div id="stats-content"></div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeModal('stats-modal')" style="grid-column: 1 / -1;">FECHAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="restore-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">RESTAURAR BACKUP</h2>
+            </div>
+            <div class="form-group">
+                <label class="label">SELECIONE O ARQUIVO</label>
+                <input type="file" id="restore-file" accept=".json" class="input">
+                <div class="help-note">
+                    <p class="body-text-small">Selecione um arquivo de backup (.json) gerado anteriormente.</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('restore-modal')">CANCELAR</button>
+                <button class="btn btn-success" onclick="restoreBackup()">RESTAURAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="help-modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2 class="modal-title">COMO USAR</h2>
+            </div>
+            <div style="line-height: 1.8;">
+                <h3 style="margin-bottom: 1rem;">PRIMEIROS PASSOS</h3>
+                <p><strong>1. Escolha o método:</strong> Copiar/Colar da planilha ou Criar Manual</p>
+                <p><strong>2. Adicione convidados:</strong> Cole dados ou preencha manualmente</p>
+                <p><strong>3. Marque presença:</strong> Clique em SIM ou NÃO para cada convidado</p>
+                <p><strong>4. Exporte:</strong> PDF, TXT ou CSV quando precisar</p>
+                
+                <h3 style="margin: 2rem 0 1rem;">MENU ARQUIVO</h3>
+                <p>• <strong>Novo Evento:</strong> Cria evento adicional (abas)</p>
+                <p>• <strong>Exportar CSV:</strong> Abre no Excel/Sheets</p>
+                <p>• <strong>Duplicar Evento:</strong> Copia estrutura para reusar</p>
+                
+                <h3 style="margin: 2rem 0 1rem;">MENU EDITAR</h3>
+                <p>• <strong>Adicionar Rápido:</strong> Popup para adicionar sem formulário grande</p>
+                <p>• <strong>Editar em Lote:</strong> Muda vários de uma vez</p>
+                <p>• <strong>Ações em Massa:</strong> Confirma/Recusa todos</p>
+                
+                <h3 style="margin: 2rem 0 1rem;">DICAS</h3>
+                <p>• Dados salvam automaticamente no navegador</p>
+                <p>• Use Ctrl+S para salvar manualmente</p>
+                <p>• Faça backup periodicamente (Ferramentas → Backup)</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeModal('help-modal')" style="grid-column: 1 / -1;">ENTENDI</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="shortcuts-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">ATALHOS DE TECLADO</h2>
+            </div>
+            <div style="display: grid; gap: var(--space-2);">
+                <div><strong>Ctrl + S</strong> - Salvar</div>
+                <div><strong>Ctrl + P</strong> - Imprimir</div>
+                <div><strong>Ctrl + F</strong> - Focar na busca</div>
+                <div><strong>Esc</strong> - Fechar modal</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeModal('shortcuts-modal')" style="grid-column: 1 / -1;">ENTENDI</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="about-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">SOBRE O SISTEMA</h2>
+            </div>
+            <div style="line-height: 1.8; text-align: center;">
+                <p style="font-size: 48px; margin-bottom: 1rem;">📋</p>
+                <h3>SISTEMA DE CONTROLE DE PRESENÇA</h3>
+                <p style="margin: 1rem 0; color: var(--gray-600);">Versão 2.0</p>
+                <p>Sistema completo para gerenciar listas de convidados em eventos.</p>
+                <p style="margin-top: 2rem; font-size: 12px; color: var(--gray-600);">Desenvolvido com Swiss Design · 2026</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeModal('about-modal')" style="grid-column: 1 / -1;">FECHAR</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         let events = [];
         let currentEventId = null;
         let editingGuestIndex = null;
+        let compactMode = false;
+        let selectedGuests = new Set();
 
         function init() {
             loadData();
@@ -882,6 +1209,11 @@
             renderTabs();
             switchToEvent(events[0].id);
             setupKeyboard();
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.menu-item')) {
+                    closeAllMenus();
+                }
+            });
         }
 
         function createDefaultEvent() {
@@ -889,7 +1221,7 @@
                 id: Date.now(),
                 name: 'Primeiro Evento',
                 date: '',
-                columns: [], // Colunas dinâmicas
+                columns: [],
                 guests: [],
                 method: null
             });
@@ -908,6 +1240,66 @@
             if (saved) events = JSON.parse(saved);
         }
 
+        // MENU FUNCTIONS
+        function toggleMenu(button) {
+            closeAllMenus();
+            const dropdown = button.nextElementSibling;
+            dropdown.classList.toggle('active');
+            button.classList.toggle('active');
+        }
+
+        function closeAllMenus() {
+            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+            document.querySelectorAll('.menu-button').forEach(b => b.classList.remove('active'));
+        }
+
+        // ARQUIVO MENU
+        function duplicateEvent() {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.guests.length === 0) {
+                return alert('Crie convidados antes de duplicar!');
+            }
+
+            const newEvent = {
+                id: Date.now(),
+                name: event.name + ' (Cópia)',
+                date: event.date,
+                columns: [...event.columns],
+                guests: event.guests.map(g => ({...g, status: null})), // Reseta status
+                method: event.method
+            };
+
+            events.push(newEvent);
+            saveData();
+            renderTabs();
+            switchToEvent(newEvent.id);
+            alert('✓ Evento duplicado! Status resetado.');
+        }
+
+        function exportCSV() {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.guests.length === 0) return alert('Sem dados para exportar!');
+
+            let csv = event.columns.join(',') + ',Status\n';
+            
+            event.guests.forEach(guest => {
+                const row = event.columns.map(col => {
+                    const value = guest[col] || '';
+                    return value.includes(',') ? `"${value}"` : value;
+                });
+                const status = guest.status === 'yes' ? 'Confirmado' : guest.status === 'no' ? 'Não vem' : 'Pendente';
+                row.push(status);
+                csv += row.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${event.name.replace(/\s+/g, '_')}.csv`;
+            a.click();
+        }
+
         function clearAllData() {
             showConfirm('LIMPAR TUDO', 'Tem certeza? Todos os eventos serão excluídos.', () => {
                 localStorage.clear();
@@ -918,6 +1310,297 @@
             });
         }
 
+        // EDITAR MENU
+        function showQuickAdd() {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.columns.length === 0) {
+                return alert('Crie colunas primeiro (escolha método Copiar/Colar ou Manual)!');
+            }
+
+            const fieldsHTML = event.columns.map(col => `
+                <div class="form-group">
+                    <label class="label">${col.toUpperCase()}</label>
+                    <input type="text" class="input" id="qa-${col}">
+                </div>
+            `).join('');
+
+            document.getElementById('quick-add-fields').innerHTML = fieldsHTML;
+            showModal('quick-add-modal');
+        }
+
+        function saveQuickAdd() {
+            const event = events.find(e => e.id === currentEventId);
+            const guest = { status: null };
+
+            event.columns.forEach(col => {
+                const input = document.getElementById(`qa-${col}`);
+                if (input) guest[col] = input.value.trim();
+            });
+
+            if (Object.values(guest).some(v => v)) {
+                event.guests.push(guest);
+                saveData();
+                closeModal('quick-add-modal');
+                renderEventContent();
+            } else {
+                alert('Preencha pelo menos um campo!');
+            }
+        }
+
+        function showBulkEdit() {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.guests.length === 0) {
+                return alert('Adicione convidados primeiro!');
+            }
+            showModal('bulk-edit-modal');
+        }
+
+        function bulkAction(action) {
+            const event = events.find(e => e.id === currentEventId);
+            
+            if (selectedGuests.size === 0) {
+                return alert('Selecione convidados primeiro (menu Editar → Selecionar Todos)!');
+            }
+
+            selectedGuests.forEach(index => {
+                if (action === 'yes') event.guests[index].status = 'yes';
+                else if (action === 'no') event.guests[index].status = 'no';
+                else if (action === 'reset') event.guests[index].status = null;
+            });
+
+            saveData();
+            closeModal('bulk-edit-modal');
+            renderEventContent();
+            selectedGuests.clear();
+        }
+
+        function selectAll() {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.guests.length === 0) return;
+
+            selectedGuests.clear();
+            event.guests.forEach((g, idx) => selectedGuests.add(idx));
+            alert(`✓ ${selectedGuests.size} convidados selecionados! Use "Editar em Lote" para aplicar ações.`);
+        }
+
+        function confirmAll() {
+            showConfirm('CONFIRMAR TODOS', 'Marcar TODOS como confirmados?', () => {
+                const event = events.find(e => e.id === currentEventId);
+                event.guests.forEach(g => g.status = 'yes');
+                saveData();
+                renderEventContent();
+            });
+        }
+
+        function rejectAll() {
+            showConfirm('RECUSAR TODOS', 'Marcar TODOS como recusados?', () => {
+                const event = events.find(e => e.id === currentEventId);
+                event.guests.forEach(g => g.status = 'no');
+                saveData();
+                renderEventContent();
+            });
+        }
+
+        function resetAll() {
+            showConfirm('RESETAR STATUS', 'Resetar status de TODOS?', () => {
+                const event = events.find(e => e.id === currentEventId);
+                event.guests.forEach(g => g.status = null);
+                saveData();
+                renderEventContent();
+            });
+        }
+
+        // VISUALIZAR MENU
+        function toggleCompactMode() {
+            compactMode = !compactMode;
+            document.querySelectorAll('.guest-card').forEach(card => {
+                card.classList.toggle('compact', compactMode);
+            });
+            alert(compactMode ? '✓ Modo compacto ativado' : '✓ Modo expandido ativado');
+        }
+
+        function filterView(filter) {
+            const cards = document.querySelectorAll('.guest-card');
+            const rows = document.querySelectorAll('#guests-tbody tr');
+
+            [...cards, ...rows].forEach(item => {
+                if (filter === 'all') {
+                    item.style.display = '';
+                } else {
+                    item.style.display = item.dataset.status === filter ? '' : 'none';
+                }
+            });
+        }
+
+        function sortBy(field) {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.guests.length === 0) return;
+
+            if (field === 'name') {
+                const firstCol = event.columns[0];
+                event.guests.sort((a, b) => {
+                    const valA = (a[firstCol] || '').toLowerCase();
+                    const valB = (b[firstCol] || '').toLowerCase();
+                    return valA.localeCompare(valB);
+                });
+            } else if (field === 'status') {
+                const statusOrder = { 'yes': 0, 'no': 1, 'null': 2 };
+                event.guests.sort((a, b) => {
+                    return statusOrder[a.status || 'null'] - statusOrder[b.status || 'null'];
+                });
+            }
+
+            saveData();
+            renderEventContent();
+        }
+
+        // FERRAMENTAS MENU
+        function showDetailedStats() {
+            const event = events.find(e => e.id === currentEventId);
+            if (!event || event.guests.length === 0) {
+                return alert('Adicione convidados primeiro!');
+            }
+
+            const stats = calculateStats(event);
+            const percentage = Math.round((stats.yes / stats.total) * 100);
+
+            const html = `
+                <div style="display: grid; gap: var(--space-4);">
+                    <div>
+                        <h3 style="margin-bottom: 1rem;">RESUMO GERAL</h3>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2);">
+                            <div style="padding: var(--space-3); background: var(--gray-100); border: 2px solid var(--gray-900);">
+                                <div class="label">TOTAL</div>
+                                <div style="font-size: 32px; font-weight: 900;">${stats.total}</div>
+                            </div>
+                            <div style="padding: var(--space-3); background: #e8f5e9; border: 2px solid var(--accent-success);">
+                                <div class="label">TAXA CONFIRMAÇÃO</div>
+                                <div style="font-size: 32px; font-weight: 900; color: var(--accent-success);">${percentage}%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 style="margin-bottom: 1rem;">DISTRIBUIÇÃO</h3>
+                        <canvas id="stats-chart" width="400" height="200"></canvas>
+                    </div>
+
+                    <div>
+                        <h3 style="margin-bottom: 1rem;">DETALHES</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr style="border-bottom: 2px solid var(--gray-900);">
+                                <th style="padding: var(--space-2); text-align: left;">Status</th>
+                                <th style="padding: var(--space-2); text-align: right;">Quantidade</th>
+                                <th style="padding: var(--space-2); text-align: right;">Percentual</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--gray-300);">
+                                <td style="padding: var(--space-2);">✓ Confirmados</td>
+                                <td style="padding: var(--space-2); text-align: right; font-weight: bold;">${stats.yes}</td>
+                                <td style="padding: var(--space-2); text-align: right;">${Math.round((stats.yes / stats.total) * 100)}%</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--gray-300);">
+                                <td style="padding: var(--space-2);">✗ Recusas</td>
+                                <td style="padding: var(--space-2); text-align: right; font-weight: bold;">${stats.no}</td>
+                                <td style="padding: var(--space-2); text-align: right;">${Math.round((stats.no / stats.total) * 100)}%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: var(--space-2);">⏳ Pendentes</td>
+                                <td style="padding: var(--space-2); text-align: right; font-weight: bold;">${stats.pending}</td>
+                                <td style="padding: var(--space-2); text-align: right;">${Math.round((stats.pending / stats.total) * 100)}%</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('stats-content').innerHTML = html;
+            showModal('stats-modal');
+
+            // Render chart
+            setTimeout(() => {
+                const ctx = document.getElementById('stats-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confirmados', 'Recusas', 'Pendentes'],
+                        datasets: [{
+                            data: [stats.yes, stats.no, stats.pending],
+                            backgroundColor: ['#00cc44', '#ff3333', '#cccccc'],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }, 100);
+        }
+
+        function backupData() {
+            const backup = {
+                version: '2.0',
+                date: new Date().toISOString(),
+                events: events
+            };
+
+            const json = JSON.stringify(backup, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_presenca_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+
+            alert('✓ Backup gerado com sucesso!');
+        }
+
+        function showRestore() {
+            showModal('restore-modal');
+        }
+
+        function restoreBackup() {
+            const file = document.getElementById('restore-file').files[0];
+            if (!file) return alert('Selecione um arquivo!');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    if (!backup.events) throw new Error('Formato inválido');
+
+                    events = backup.events;
+                    saveData();
+                    closeModal('restore-modal');
+                    renderTabs();
+                    switchToEvent(events[0].id);
+                    alert('✓ Backup restaurado com sucesso!');
+                } catch (error) {
+                    alert('Erro ao restaurar: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // AJUDA MENU
+        function showHelp() {
+            showModal('help-modal');
+        }
+
+        function showShortcuts() {
+            showModal('shortcuts-modal');
+        }
+
+        function showAbout() {
+            showModal('about-modal');
+        }
+
+        // Continue with existing functions...
         function renderTabs() {
             const container = document.getElementById('tabs-container');
             container.innerHTML = '';
@@ -1053,38 +1736,29 @@
                 const lines = data.split('\n').filter(l => l.trim());
                 if (lines.length < 2) throw new Error('Precisa de pelo menos 2 linhas (cabeçalho + dados)');
 
-                // Primeira linha = colunas (TAB separated)
                 const columns = lines[0].split('\t').map(c => c.trim()).filter(c => c);
-                
                 console.log('📋 Colunas detectadas:', columns);
 
                 const guests = [];
-
-                // Processar dados
                 for (let i = 1; i < lines.length; i++) {
                     const values = lines[i].split('\t');
                     const guest = { status: null };
-                    
                     columns.forEach((col, idx) => {
                         guest[col] = (values[idx] || '').trim();
                     });
-
-                    // Só adiciona se pelo menos um campo preenchido
                     if (Object.values(guest).some(v => v)) {
                         guests.push(guest);
                     }
                 }
 
                 if (guests.length === 0) throw new Error('Nenhum dado válido encontrado!');
-
-                console.log(`✅ Importados ${guests.length} convidados com ${columns.length} colunas`);
+                console.log(`✅ Importados ${guests.length} convidados`);
 
                 const event = events.find(e => e.id === currentEventId);
                 event.columns = columns;
                 event.guests = guests;
                 saveData();
                 renderEventContent();
-
             } catch (error) {
                 alert('ERRO: ' + error.message);
             }
@@ -1122,7 +1796,6 @@
             const event = events.find(e => e.id === currentEventId);
             event.columns = columns;
             
-            // Adiciona primeira linha vazia
             const firstGuest = { status: null };
             columns.forEach(col => firstGuest[col] = '');
             event.guests = [firstGuest];
@@ -1195,12 +1868,9 @@
             rows.forEach(row => {
                 const guest = { status: null };
                 const inputs = row.querySelectorAll('input[data-column]');
-                
                 inputs.forEach(input => {
                     guest[input.dataset.column] = input.value.trim();
                 });
-
-                // Adiciona se pelo menos um campo preenchido
                 if (Object.values(guest).some(v => v)) {
                     guests.push(guest);
                 }
@@ -1287,7 +1957,7 @@
                         <div class="footer-actions">
                             <button class="btn" onclick="exportPDF()">📄 PDF</button>
                             <button class="btn" onclick="exportTXT()">📝 TXT</button>
-                            <button class="btn btn-success" onclick="saveData(); alert('✓ Salvo!')">💾 SALVAR</button>
+                            <button class="btn" onclick="exportCSV()">📊 CSV</button>
                         </div>
                     </div>
                 </section>
@@ -1303,20 +1973,10 @@
             cardsContainer.innerHTML = '';
             tbodyContainer.innerHTML = '';
 
-            // Ícones para tipos comuns de campos
             const fieldIcons = {
-                'email': '✉',
-                'telefone': '📱',
-                'phone': '📱',
-                'whatsapp': '💬',
-                'cidade': '📍',
-                'city': '📍',
-                'endereco': '🏠',
-                'endereço': '🏠',
-                'cpf': '🆔',
-                'rg': '🆔',
-                'idade': '🎂',
-                'data': '📅'
+                'email': '✉', 'telefone': '📱', 'phone': '📱', 'whatsapp': '💬',
+                'cidade': '📍', 'city': '📍', 'endereco': '🏠', 'endereço': '🏠',
+                'cpf': '🆔', 'rg': '🆔', 'idade': '🎂', 'data': '📅'
             };
 
             function getFieldIcon(fieldName) {
@@ -1328,7 +1988,6 @@
             }
 
             event.guests.forEach((guest, index) => {
-                // Mobile card
                 const card = document.createElement('div');
                 card.className = 'guest-card';
                 card.dataset.status = guest.status || 'pending';
@@ -1373,14 +2032,12 @@
                 `;
                 cardsContainer.appendChild(card);
 
-                // Desktop table row
                 const row = document.createElement('tr');
                 row.dataset.status = guest.status || 'pending';
                 
                 const cells = event.columns.map((col, idx) => {
                     const value = guest[col] || '-';
                     if (idx === 0) {
-                        // Primeira coluna com badge
                         const badge = guest.status === 'yes' ? '<span class="status-badge yes">✓</span>' :
                                      guest.status === 'no' ? '<span class="status-badge no">✗</span>' :
                                      '<span class="status-badge pending">⏳</span>';
@@ -1481,7 +2138,6 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
-            // CABEÇALHO COM DESIGN
             doc.setFillColor(0, 0, 0);
             doc.rect(0, 0, 210, 35, 'F');
             
@@ -1495,7 +2151,6 @@
             const dateText = event.date ? `Data do Evento: ${formatDateBR(event.date)}` : 'Sistema de Controle de Presença';
             doc.text(dateText, 20, 28);
 
-            // ESTATÍSTICAS EM DESTAQUE
             const stats = calculateStats(event);
             const percentage = event.guests.length > 0 ? Math.round((stats.yes / event.guests.length) * 100) : 0;
             
@@ -1509,34 +2164,28 @@
             doc.setFontSize(10);
             doc.setFont(undefined, 'normal');
             
-            // Box de estatísticas
             doc.setDrawColor(200, 200, 200);
             doc.setLineWidth(0.5);
             
-            // Total
             doc.setFillColor(245, 245, 245);
             doc.roundedRect(20, y - 3, 40, 12, 2, 2, 'FD');
             doc.text(`Total: ${stats.total}`, 25, y + 4);
             
-            // Confirmados (verde)
             doc.setFillColor(0, 204, 68, 25);
             doc.roundedRect(65, y - 3, 40, 12, 2, 2, 'FD');
             doc.setTextColor(0, 150, 50);
             doc.text(`✓ Sim: ${stats.yes}`, 70, y + 4);
             
-            // Recusas (vermelho)
             doc.setFillColor(255, 51, 51, 25);
             doc.roundedRect(110, y - 3, 40, 12, 2, 2, 'FD');
             doc.setTextColor(200, 0, 0);
             doc.text(`✗ Não: ${stats.no}`, 115, y + 4);
             
-            // Pendentes
             doc.setFillColor(245, 245, 245);
             doc.roundedRect(155, y - 3, 40, 12, 2, 2, 'FD');
             doc.setTextColor(100, 100, 100);
             doc.text(`⏳ Pend: ${stats.pending}`, 160, y + 4);
             
-            // Barra de progresso
             y += 18;
             doc.setTextColor(0, 0, 0);
             doc.setFontSize(9);
@@ -1552,7 +2201,6 @@
                 doc.rect(20, y, (170 * percentage / 100), 5, 'F');
             }
 
-            // TABELA DE CONVIDADOS
             y += 12;
             doc.setFontSize(14);
             doc.setFont(undefined, 'bold');
@@ -1560,7 +2208,6 @@
             
             y += 5;
 
-            // Preparar dados da tabela
             const tableHeaders = ['#', 'Status', ...event.columns];
             const tableData = event.guests.map((guest, idx) => {
                 const statusIcon = guest.status === 'yes' ? '✓' : guest.status === 'no' ? '✗' : '⏳';
@@ -1572,7 +2219,6 @@
                 ];
             });
 
-            // Usar autoTable se disponível, senão tabela manual
             if (typeof doc.autoTable === 'function') {
                 doc.autoTable({
                     head: [tableHeaders],
@@ -1596,7 +2242,6 @@
                         1: { cellWidth: 25 }
                     },
                     didParseCell: function(data) {
-                        // Colorir status
                         if (data.column.index === 1 && data.section === 'body') {
                             if (data.cell.text[0].includes('✓')) {
                                 data.cell.styles.textColor = [0, 150, 50];
@@ -1611,40 +2256,8 @@
                         fillColor: [250, 250, 250]
                     }
                 });
-            } else {
-                // Tabela manual simples
-                y += 2;
-                doc.setFontSize(9);
-                event.guests.forEach((guest, idx) => {
-                    if (y > 270) {
-                        doc.addPage();
-                        y = 20;
-                    }
-                    
-                    const statusIcon = guest.status === 'yes' ? '✓' : guest.status === 'no' ? '✗' : '⏳';
-                    const firstCol = event.columns[0];
-                    
-                    if (guest.status === 'yes') doc.setTextColor(0, 150, 50);
-                    else if (guest.status === 'no') doc.setTextColor(200, 0, 0);
-                    else doc.setTextColor(100, 100, 100);
-                    
-                    doc.text(`${idx + 1}. ${statusIcon} ${guest[firstCol]}`, 20, y);
-                    doc.setTextColor(0, 0, 0);
-                    y += 7;
-                    
-                    event.columns.slice(1).forEach(col => {
-                        if (guest[col]) {
-                            doc.setFontSize(8);
-                            doc.text(`   ${col}: ${guest[col]}`, 25, y);
-                            y += 5;
-                        }
-                    });
-                    
-                    y += 2;
-                });
             }
 
-            // RODAPÉ
             const pageCount = doc.internal.getNumberOfPages();
             for (let i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
@@ -1672,7 +2285,11 @@
             const event = events.find(e => e.id === currentEventId);
             let content = `${event.name.toUpperCase()}\n${'='.repeat(50)}\n\n`;
 
-            event.guests.forEach(guest => {
+            if (event.date) {
+                content += `DATA: ${formatDateBR(event.date)}\n\n`;
+            }
+
+            event.guests.forEach((guest, i) => {
                 const status = guest.status === 'yes' ? '[✓]' : guest.status === 'no' ? '[✗]' : '[ ]';
                 const firstCol = event.columns[0];
                 content += `${status} ${guest[firstCol]}\n`;
@@ -1719,8 +2336,13 @@
                     saveData();
                     alert('✓ Salvo!');
                 }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+                    e.preventDefault();
+                    window.print();
+                }
                 if (e.key === 'Escape') {
                     document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+                    closeAllMenus();
                 }
             });
         }
