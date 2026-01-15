@@ -11,7 +11,7 @@ const App = {
         Utils.log('Iniciando aplicação');
 
         try {
-            // ✅ CHECA QR SYNC ANTES DE CARREGAR DADOS
+            // Checa QR Sync ANTES de carregar dados
             QRSync.checkForQRSync();
 
             // Inicializa estado
