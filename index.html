@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Controle de Presença</title>
+    <title>Sistema de Controle de Presença v3.0</title>
     
     <!-- CSS -->
     <link rel="stylesheet" href="css/styles.css">
@@ -73,6 +73,8 @@
                     <div class="dropdown">
                         <button class="dropdown-item" data-action="detailed-stats">Estatísticas Detalhadas</button>
                         <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="APISetup.showSetupModal()">📊 Configurar Google Sheets</button>
+                        <div class="dropdown-divider"></div>
                         <button class="dropdown-item" data-action="backup">Backup (Download)</button>
                         <button class="dropdown-item" data-action="restore">Restaurar Backup</button>
                     </div>
@@ -96,7 +98,7 @@
         <header class="header">
             <div>
                 <h1 class="heading-1">CONTROLE DE PRESENÇA</h1>
-                <p class="label">Sistema de Gestão de Eventos</p>
+                <p class="label">Sistema de Gestão de Eventos v3.0</p>
                 <span class="auto-save" id="auto-save">✓ AUTO-SALVO</span>
             </div>
         </header>
@@ -221,17 +223,24 @@
             <div class="modal-header">
                 <h2 class="modal-title">COMO USAR</h2>
             </div>
-            <div style="line-height: 1.8;">
+            <div style="padding: var(--space-4); line-height: 1.8;">
                 <h3 style="margin-bottom: 1rem;">PRIMEIROS PASSOS</h3>
                 <p><strong>1. Escolha o método:</strong> Copiar/Colar da planilha ou Criar Manual</p>
                 <p><strong>2. Adicione convidados:</strong> Cole dados ou preencha manualmente</p>
                 <p><strong>3. Marque presença:</strong> Clique em SIM ou NÃO para cada convidado</p>
                 <p><strong>4. Exporte:</strong> PDF, TXT ou CSV quando precisar</p>
                 
+                <h3 style="margin: 2rem 0 1rem;">NOVIDADES v3.0</h3>
+                <p>• <strong>Formulário por aba:</strong> Cada evento gera formulário automático</p>
+                <p>• <strong>Google Sheets:</strong> Configure em Ferramentas → Configurar Google Sheets</p>
+                <p>• <strong>Autocompletar:</strong> Sistema aprende nomes frequentes</p>
+                <p>• <strong>Editar abas:</strong> Clique no ícone ✏️ para renomear</p>
+                
                 <h3 style="margin: 2rem 0 1rem;">DICAS</h3>
                 <p>• Dados salvam automaticamente no navegador</p>
                 <p>• Use Ctrl+S para salvar manualmente</p>
                 <p>• Faça backup periodicamente (Ferramentas → Backup)</p>
+                <p>• Configure Google Sheets para formulários online</p>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-primary" data-modal-action="cancel" style="grid-column: 1 / -1;">ENTENDI</button>
@@ -244,7 +253,7 @@
             <div class="modal-header">
                 <h2 class="modal-title">ATALHOS DE TECLADO</h2>
             </div>
-            <div style="display: grid; gap: var(--space-2);">
+            <div style="padding: var(--space-4); display: grid; gap: var(--space-2);">
                 <div><strong>Ctrl + S</strong> - Salvar</div>
                 <div><strong>Ctrl + P</strong> - Imprimir</div>
                 <div><strong>Ctrl + F</strong> - Focar na busca</div>
@@ -262,11 +271,15 @@
             <div class="modal-header">
                 <h2 class="modal-title">SOBRE O SISTEMA</h2>
             </div>
-            <div style="line-height: 1.8; text-align: center;">
+            <div style="line-height: 1.8; text-align: center; padding: var(--space-4);">
                 <p style="font-size: 48px; margin-bottom: 1rem;">📋</p>
                 <h3>SISTEMA DE CONTROLE DE PRESENÇA</h3>
                 <p style="margin: 1rem 0; color: var(--gray-600);">Versão 3.0</p>
                 <p>Sistema completo para gerenciar listas de convidados em eventos.</p>
+                <p style="margin-top: 2rem;">Com formulários online e sincronização automática via Google Sheets.</p>
+                <p style="margin-top: 2rem; font-size: 14px; color: var(--gray-600);">
+                    Desenvolvido por Gabriel Felizardo
+                </p>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-primary" data-modal-action="cancel" style="grid-column: 1 / -1;">FECHAR</button>
@@ -293,6 +306,9 @@
     <script src="js/cloud-assist.js"></script>
     <script src="js/qr-sync.js"></script>
     <script src="js/usability-fixes.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api-client.js"></script>
+    <script src="js/api-setup-ui.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
