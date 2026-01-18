@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/responsive-table-fix.css">
     <link rel="stylesheet" href="css/templates-styles.css">
-    <!-- ✅ NOVO: Footer e features v2.3 -->
-    <link rel="stylesheet" href="css/footer-features.css">
+    <link rel="stylesheet" href="css/features-sem-footer.css">
 </head>
 <body>
     <!-- MENU BAR -->
@@ -106,14 +105,6 @@
 
         <div id="event-content"></div>
     </div>
-
-    <!-- FOOTER -->
-    <footer class="footer">
-        <div class="footer-content">
-            <span class="footer-version">v2.3</span>
-            <span class="footer-developer">Desenvolvido por <strong>Gabriel Felizardo</strong></span>
-        </div>
-    </footer>
 
     <!-- MODALS -->
     <div class="modal" id="confirm-modal">
@@ -237,7 +228,7 @@
                 
                 <h3 style="margin: 2rem 0 1rem;">NOVIDADES v2.3</h3>
                 <p>• <strong>Autocompletar Nomes:</strong> Sistema aprende nomes frequentes</p>
-                <p>• <strong>Editar Nome da Aba:</strong> Duplo clique na aba para renomear</p>
+                <p>• <strong>Editar Nome da Aba:</strong> Clique no ícone ✏️ para renomear</p>
                 <p>• <strong>Templates Reutilizáveis:</strong> Salve estruturas de eventos</p>
                 
                 <h3 style="margin: 2rem 0 1rem;">DICAS</h3>
@@ -261,7 +252,7 @@
                 <div><strong>Ctrl + P</strong> - Imprimir</div>
                 <div><strong>Ctrl + F</strong> - Focar na busca</div>
                 <div><strong>Esc</strong> - Fechar modal</div>
-                <div><strong>Duplo clique na aba</strong> - Editar nome</div>
+                <div><strong>Clique no ✏️</strong> - Editar nome da aba</div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-primary" data-modal-action="cancel" style="grid-column: 1 / -1;">ENTENDI</button>
@@ -279,7 +270,6 @@
                 <h3>SISTEMA DE CONTROLE DE PRESENÇA</h3>
                 <p style="margin: 1rem 0; color: var(--gray-600);">Versão 2.3</p>
                 <p>Sistema completo para gerenciar listas de convidados em eventos.</p>
-                <p style="margin-top: 2rem; font-size: 12px; color: var(--gray-600);">Desenvolvido por Gabriel Felizardo · 2026</p>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-primary" data-modal-action="cancel" style="grid-column: 1 / -1;">FECHAR</button>
@@ -304,9 +294,9 @@
     <script src="js/cloud-assist.js"></script>
     <script src="js/qr-sync.js"></script>
     <script src="js/usability-fixes.js"></script>
-    <!-- ✅ NOVOS MÓDULOS v2.3 -->
+    <!-- ✅ NOVOS MÓDULOS v2.3 (SEM FOOTER) -->
     <script src="js/name-autocomplete.js"></script>
-    <script src="js/editable-tabs.js"></script>
+    <script src="js/editable-tabs-icon.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
