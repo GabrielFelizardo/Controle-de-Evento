@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Controle de Presença</title>
+    
+    <!-- CSS -->
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/responsive-table-fix.css">
     <link rel="stylesheet" href="css/templates-styles.css">
-    <link rel="stylesheet" href="css/features-sem-footer.css">
+    <link rel="stylesheet" href="css/features.css">
 </head>
 <body>
     <!-- MENU BAR -->
@@ -226,11 +228,6 @@
                 <p><strong>3. Marque presença:</strong> Clique em SIM ou NÃO para cada convidado</p>
                 <p><strong>4. Exporte:</strong> PDF, TXT ou CSV quando precisar</p>
                 
-                <h3 style="margin: 2rem 0 1rem;">NOVIDADES v2.3</h3>
-                <p>• <strong>Autocompletar Nomes:</strong> Sistema aprende nomes frequentes</p>
-                <p>• <strong>Editar Nome da Aba:</strong> Clique no ícone ✏️ para renomear</p>
-                <p>• <strong>Templates Reutilizáveis:</strong> Salve estruturas de eventos</p>
-                
                 <h3 style="margin: 2rem 0 1rem;">DICAS</h3>
                 <p>• Dados salvam automaticamente no navegador</p>
                 <p>• Use Ctrl+S para salvar manualmente</p>
@@ -268,7 +265,7 @@
             <div style="line-height: 1.8; text-align: center;">
                 <p style="font-size: 48px; margin-bottom: 1rem;">📋</p>
                 <h3>SISTEMA DE CONTROLE DE PRESENÇA</h3>
-                <p style="margin: 1rem 0; color: var(--gray-600);">Versão 2.3</p>
+                <p style="margin: 1rem 0; color: var(--gray-600);">Versão 3.0</p>
                 <p>Sistema completo para gerenciar listas de convidados em eventos.</p>
             </div>
             <div class="modal-actions">
@@ -284,19 +281,18 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 
-    <!-- Application Scripts (Order Matters!) -->
+    <!-- Application Scripts - ORDEM CORRETA! -->
     <script src="js/utils.js"></script>
     <script src="js/state.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/exports.js"></script>
+    <script src="js/name-autocomplete.js"></script>
+    <script src="js/editable-tabs.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/ui-guests.js"></script>
     <script src="js/cloud-assist.js"></script>
     <script src="js/qr-sync.js"></script>
     <script src="js/usability-fixes.js"></script>
-    <!-- ✅ NOVOS MÓDULOS v2.3 (SEM FOOTER) -->
-    <script src="js/name-autocomplete.js"></script>
-    <script src="js/editable-tabs-icon.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
