@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Controle de Presença v3.1</title>
     
-    <!-- CSS -->
+    <!-- CSS - Ordem otimizada -->
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/responsive-table-fix.css">
     <link rel="stylesheet" href="css/templates-styles.css">
@@ -22,9 +22,6 @@
                     <div class="dropdown">
                         <button class="dropdown-item" data-action="new-event">Novo Evento</button>
                         <button class="dropdown-item" data-action="save">Salvar <span class="shortcut">Ctrl+S</span></button>
-                        <div class="dropdown-divider"></div>
-                        <button class="dropdown-item" data-action="cloud-backup">☁️ Salvar na Nuvem</button>
-                        <button class="dropdown-item" data-action="qr-sync">📱 Sincronizar QR Code</button>
                         <div class="dropdown-divider"></div>
                         <button class="dropdown-item" data-action="export-pdf">Exportar PDF</button>
                         <button class="dropdown-item" data-action="export-txt">Exportar TXT</button>
@@ -116,7 +113,7 @@
     </div>
 
     <!-- ========================================
-         MODALS - TODOS OS 10 MODALS
+         MODALS
          ======================================== -->
 
     <!-- MODAL: CONFIRMAÇÃO -->
@@ -260,12 +257,6 @@
                 <p>• Menu Ferramentas → Abrir Minha Planilha</p>
                 <p>• Ou acesse drive.google.com</p>
                 <p>• Procure: "Sistema Presença - seuemail@gmail.com"</p>
-                
-                <h3 style="margin: 2rem 0 1rem;">DICAS</h3>
-                <p>• Sistema aprende nomes frequentes (autocompletar)</p>
-                <p>• Clique no ✏️ para editar nome do evento</p>
-                <p>• Google faz backup automático da planilha</p>
-                <p>• Pode exportar para Excel a qualquer momento</p>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-primary" data-modal-action="cancel" style="grid-column: 1 / -1;">ENTENDI</button>
@@ -328,31 +319,35 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 
-    <!-- ========================================
-         SCRIPTS DA APLICAÇÃO v3.1
-         ORDEM IMPORTA!
-         ======================================== -->
-    
-    <!-- Core -->
+    <!-- 1. CORE SYSTEM (Base do sistema) -->
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/state.js"></script>
     <script src="js/storage.js"></script>
-    <script src="js/exports.js"></script>
     
-    <!-- Features -->
+    <!-- 2. API & SYNC (Conexão com Google Sheets) -->
+    <script src="js/api-client-v3.1.js"></script>
+    <script src="js/sheet-sync.js"></script>
+    <script src="js/auth-system.js"></script>
+    
+    <!-- 3. FEATURES (Funcionalidades extras) -->
+    <script src="js/exports.js"></script>
     <script src="js/name-autocomplete.js"></script>
     <script src="js/editable-tabs.js"></script>
+    
+    <!-- 4. UI (Interface do usuário) -->
     <script src="js/ui.js"></script>
     <script src="js/ui-guests.js"></script>
+    
+    <!-- 5. HELPERS (Utilidades) -->
     <script src="js/cloud-assist.js"></script>
     <script src="js/qr-sync.js"></script>
     <script src="js/usability-fixes.js"></script>
     
-    <!-- v3.1 - Sistema baseado em Email + Planilha -->
-    <script src="js/api-client-v3.1.js"></script>
-    <script src="js/sheet-sync.js"></script>
-    <script src="js/auth-system.js"></script>
+    <!-- 6. ERROR HANDLING (Novo) -->
+    <script src="js/error-handler.js"></script>
+    
+    <!-- 7. APP INIT (Inicialização - SEMPRE POR ÚLTIMO) -->
     <script src="js/app-v3.1.js"></script>
 </body>
 </html>
