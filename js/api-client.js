@@ -1,31 +1,23 @@
 /**
- * CLIENTE DA API v3.1
- * Sistema baseado em email + planilha
- * ✅ Melhorado com tratamento de erros robusto
+ * CLIENTE DA API v3.0
+ * Comunicação com Apps Script + Google Sheets
  */
-
-"use strict";
 
 const API = {
   /**
-   * Requisição base com retry automático
-   * @param {string} action - Ação a executar
-   * @param {Object} data - Dados da requisição
-   * @param {number} retries - Tentativas restantes
-   * @returns {Promise<Object>} Resultado da API
+   * Requisição base
    */
-  async request(action, data = {}, retries = 3) {
-    if (!API_CONFIG.API_URL) {
-      console.warn('⚠️ API não configurada');
-      return { success: false, error: 'API não configurada' };
+  async request(action, data = {}) {
+    // Se API não configurada, retorna mock
+    if (!API_CONFIG.USE_SHEETS || !API_CONFIG.API_URL) {
+      console.warn('⚠️ API não configurada - retornando mock');
+      return this.mockResponse(action, data);
     }
     
     try {
-      const spreadsheetId = localStorage.getItem('spreadsheetId');
-      
       const payload = {
         action: action,
-        spreadsheetId: spreadsheetId,
+        spreadsheetId: getSpreadsheetId(),
         ...data
       };
       
@@ -33,7 +25,9 @@ const API = {
       
       const response = await fetch(API_CONFIG.API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
         body: JSON.stringify(payload),
         redirect: 'follow'
       });
@@ -43,50 +37,38 @@ const API = {
       }
       
       const result = await response.json();
-      
       console.log(`✅ API Response (${action}):`, result);
       
       return result;
       
     } catch (error) {
-      console.error(`❌ Erro na API (${action}):`, error);
-      
-      // Retry automático em caso de erro de rede
-      if (retries > 0 && error.message.includes('fetch')) {
-        console.log(`🔄 Tentando novamente... (${retries} tentativas restantes)`);
-        await this.sleep(1000); // Aguarda 1 segundo
-        return this.request(action, data, retries - 1);
-      }
-      
-      return { 
-        success: false, 
-        error: error.message,
-        action: action
-      };
+      console.error('❌ Erro na API:', error);
+      throw error;
     }
   },
   
   /**
-   * Helper - aguarda tempo em ms
+   * Mock response (quando API não configurada)
    */
-  sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  mockResponse(action, data) {
+    console.log(`🔧 Mock: ${action}`, data);
+    return {
+      success: true,
+      mock: true,
+      message: 'API não configurada - operação simulada'
+    };
   },
   
   // ========================================
-  // AUTENTICAÇÃO
+  // CLIENTE
   // ========================================
   
   /**
-   * Busca ou cria planilha por email
-   * @param {string} email - Email do usuário
-   * @returns {Promise<Object>} Dados da planilha
+   * Busca ou cria planilha por email (SISTEMA v3.1)
    */
   async getOrCreateSpreadsheet(email) {
     try {
-      if (!email || !email.includes('@')) {
-        return { success: false, error: 'Email inválido' };
-      }
+      console.log('📡 Buscando/criando planilha para:', email);
       
       const payload = {
         action: 'getOrCreateSpreadsheet',
@@ -95,36 +77,64 @@ const API = {
       
       const response = await fetch(API_CONFIG.API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
         body: JSON.stringify(payload),
         redirect: 'follow'
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const result = await response.json();
+      console.log('✅ Resposta da API:', result);
       
       if (result.success && result.data) {
+        // Salva o spreadsheetId
+        if (result.data.spreadsheetId) {
+          setSpreadsheetId(result.data.spreadsheetId);
+        }
+        
         return {
           success: true,
           spreadsheetId: result.data.spreadsheetId,
           spreadsheetUrl: result.data.spreadsheetUrl,
-          email: result.data.email,
-          isNew: result.data.isNew
+          isNew: result.data.isNew || false,
+          data: result.data
         };
       }
       
       return result;
       
     } catch (error) {
-      console.error('Erro ao buscar/criar planilha:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Erro ao acessar API'
+      console.error('❌ Erro ao buscar planilha:', error);
+      return {
+        success: false,
+        error: error.message
       };
     }
+  },
+  
+  /**
+   * Cria novo cliente (planilha)
+   */
+  async createClient(name, email, plan = 'basic') {
+    const result = await this.request('createClient', { name, email, plan });
+    
+    if (result.spreadsheetId) {
+      setSpreadsheetId(result.spreadsheetId);
+    }
+    
+    return result;
+  },
+  
+  /**
+   * Busca dados do cliente
+   */
+  async getClient() {
+    return await this.request('getClient');
   },
   
   // ========================================
@@ -132,56 +142,30 @@ const API = {
   // ========================================
   
   /**
-   * Cria novo evento (nova aba na planilha)
-   * @param {string} name - Nome do evento
-   * @param {string} date - Data do evento
-   * @param {string} description - Descrição
-   * @returns {Promise<Object>} Evento criado
+   * Cria novo evento
    */
-  async createEvent(name, date, description) {
-    if (!name || name.trim() === '') {
-      return { success: false, error: 'Nome do evento é obrigatório' };
-    }
-    
-    const result = await this.request('createEvent', {
-      name: name.trim(),
-      date: date || '',
-      description: description || ''
+  async createEvent(name, date, description = '', location = '') {
+    return await this.request('createEvent', {
+      name, date, description, location
     });
-    
-    return result;
   },
   
   /**
-   * Lista eventos (abas da planilha)
-   * @returns {Promise<Object>} Lista de eventos
+   * Lista eventos
    */
   async getEvents() {
-    const result = await this.request('getEvents');
-    return result.success ? result.data : { events: [] };
+    return await this.request('getEvents');
   },
   
   /**
-   * Atualiza evento (renomeia aba)
-   * @param {string} eventId - ID do evento
-   * @param {string} newName - Novo nome
-   * @returns {Promise<Object>} Resultado
+   * Atualiza evento
    */
-  async updateEvent(eventId, newName) {
-    if (!newName || newName.trim() === '') {
-      return { success: false, error: 'Novo nome é obrigatório' };
-    }
-    
-    return await this.request('updateEvent', {
-      eventId,
-      newName: newName.trim()
-    });
+  async updateEvent(eventId, updates) {
+    return await this.request('updateEvent', { eventId, updates });
   },
   
   /**
-   * Deleta evento (deleta aba)
-   * @param {string} eventId - ID do evento
-   * @returns {Promise<Object>} Resultado
+   * Deleta evento
    */
   async deleteEvent(eventId) {
     return await this.request('deleteEvent', { eventId });
@@ -192,74 +176,38 @@ const API = {
   // ========================================
   
   /**
-   * Adiciona convidado (adiciona linha na aba)
-   * @param {string} eventId - ID do evento
-   * @param {Object} guest - Dados do convidado
-   * @returns {Promise<Object>} Convidado criado
+   * Adiciona convidado
    */
   async addGuest(eventId, guest) {
-    if (!guest.name || guest.name.trim() === '') {
-      return { success: false, error: 'Nome do convidado é obrigatório' };
-    }
-    
-    return await this.request('addGuest', {
-      eventId,
-      guest: {
-        name: guest.name.trim(),
-        phone: (guest.phone || '').trim(),
-        email: (guest.email || '').trim(),
-        status: guest.status || 'pending',
-        notes: (guest.notes || '').trim()
-      }
-    });
+    return await this.request('addGuest', { eventId, guest });
   },
   
   /**
-   * Lista convidados (linhas da aba)
-   * @param {string} eventId - ID do evento
-   * @returns {Promise<Object>} Lista de convidados
+   * Lista convidados de um evento
    */
   async getGuests(eventId) {
-    const result = await this.request('getGuests', { eventId });
-    return result.success ? result.data : { guests: [] };
+    return await this.request('getGuests', { eventId });
   },
   
   /**
-   * Atualiza convidado (atualiza linha)
-   * @param {string} eventId - ID do evento
-   * @param {number} guestId - ID do convidado
-   * @param {Object} updates - Atualizações
-   * @returns {Promise<Object>} Resultado
+   * Atualiza convidado
    */
-  async updateGuest(eventId, guestId, updates) {
-    // Limpa valores
-    const cleanUpdates = {};
-    for (const key in updates) {
-      if (updates[key] !== undefined) {
-        cleanUpdates[key] = typeof updates[key] === 'string' 
-          ? updates[key].trim() 
-          : updates[key];
-      }
-    }
-    
-    return await this.request('updateGuest', {
-      eventId,
-      guestId,
-      updates: cleanUpdates
-    });
+  async updateGuest(guestId, updates) {
+    return await this.request('updateGuest', { guestId, updates });
   },
   
   /**
-   * Deleta convidado (deleta linha)
-   * @param {string} eventId - ID do evento
-   * @param {number} guestId - ID do convidado
-   * @returns {Promise<Object>} Resultado
+   * Atualiza status do convidado
    */
-  async deleteGuest(eventId, guestId) {
-    return await this.request('deleteGuest', {
-      eventId,
-      guestId
-    });
+  async updateStatus(guestId, status, eventId) {
+    return await this.request('updateStatus', { guestId, status, eventId });
+  },
+  
+  /**
+   * Deleta convidado
+   */
+  async deleteGuest(guestId) {
+    return await this.request('deleteGuest', { guestId });
   },
   
   // ========================================
@@ -267,87 +215,59 @@ const API = {
   // ========================================
   
   /**
-   * Cria formulário Google Forms
-   * @param {string} eventId - ID do evento
-   * @param {string} eventName - Nome do evento
-   * @returns {Promise<Object>} Dados do formulário
+   * Cria Google Form para evento
    */
-  async createEventForm(eventId, eventName) {
+  async createEventForm(eventId, eventName, eventDate) {
     return await this.request('createEventForm', {
-      eventId,
-      eventName: eventName || eventId
+      eventId, eventName, eventDate
     });
+  },
+  
+  /**
+   * Busca respostas do formulário
+   */
+  async getFormResponses(formId) {
+    return await this.request('getFormResponses', { formId });
   },
   
   /**
    * Sincroniza respostas do formulário
-   * @param {string} eventId - ID do evento
-   * @param {string} formId - ID do formulário
-   * @returns {Promise<Object>} Resultado da sincronização
    */
-  async syncFormResponses(eventId, formId) {
-    return await this.request('syncFormResponses', {
-      eventId,
-      formId
-    });
+  async syncFormResponses(eventId) {
+    return await this.request('syncFormResponses', { eventId });
   },
   
   // ========================================
-  // HELPERS & DIAGNOSTICS
+  // HELPERS
   // ========================================
   
   /**
-   * Testa conexão com a API
-   * @returns {Promise<boolean>} True se conectado
+   * Testa conexão com API
    */
   async testConnection() {
     try {
-      console.log('🔍 Testando conexão com API...');
-      
-      const response = await fetch(API_CONFIG.API_URL, {
-        method: 'GET',
-        redirect: 'follow'
-      });
-      
-      const result = await response.json();
-      console.log('✅ Conexão OK:', result);
+      console.log('🔍 Testando conexão...');
+      const result = await this.request('getClient');
+      console.log('✅ Conexão OK', result);
       return true;
-      
     } catch (error) {
-      console.error('❌ Conexão falhou:', error);
+      console.error('❌ Conexão falhou', error);
       return false;
     }
-  },
-  
-  /**
-   * Retorna informações de diagnóstico
-   * @returns {Object} Informações da API
-   */
-  getDiagnostics() {
-    return {
-      configured: !!API_CONFIG.API_URL,
-      apiUrl: API_CONFIG.API_URL || 'NÃO CONFIGURADA',
-      spreadsheetId: localStorage.getItem('spreadsheetId') || 'NÃO CONFIGURADO',
-      userEmail: localStorage.getItem('userEmail') || 'NÃO LOGADO',
-      version: API_CONFIG.VERSION || '3.1'
-    };
-  },
-  
-  /**
-   * Limpa cache e força reconexão
-   */
-  resetConnection() {
-    console.log('🔄 Resetando conexão...');
-    // Mantém email mas limpa spreadsheetId para forçar busca novamente
-    const email = localStorage.getItem('userEmail');
-    localStorage.removeItem('spreadsheetId');
-    console.log('✅ Conexão resetada. Email mantido:', email);
   }
 };
 
 // Exporta globalmente
 window.API = API;
 
-// Log de inicialização
-console.log('📡 API Client v3.1 carregado');
-console.log('📊 Diagnóstico:', API.getDiagnostics());
+// Log inicial
+console.log('📡 API Client v' + API_CONFIG.VERSION + ' carregado');
+
+if (isApiConfigured()) {
+  console.log('✅ API pronta para uso');
+} else {
+  console.log('⚠️ Configure a API primeiro:');
+  console.log('  1. Deploy do Apps Script');
+  console.log('  2. setupApi("url-do-apps-script")');
+  console.log('  3. API.createClient("nome", "email")');
+}
