@@ -1,61 +1,38 @@
 /**
- * SISTEMA DE PRESENÇA - APPS SCRIPT BACKEND
- * v3.0 - Google Sheets + Forms Integration
+ * SISTEMA DE PRESENÇA - APPS SCRIPT v3.1
+ * Sistema baseado em EMAIL
+ * 1 planilha por usuário
+ * Cada evento = 1 aba na planilha
  * 
  * Desenvolvido por: Gabriel Felizardo
- * 
- * FUNCIONALIDADES:
- * - API REST para frontend
- * - CRUD de eventos
- * - CRUD de convidados
- * - Criação automática de Google Forms
- * - Geração de QR Codes
- * - Sistema multi-cliente
  */
 
 // ========================================
-// CONFIGURAÇÕES GLOBAIS
+// CONFIGURAÇÕES
 // ========================================
 
 const CONFIG = {
-  SHEET_NAMES: {
-    CONFIG: 'CONFIG',
-    EVENTOS: 'EVENTOS',
-    CONVIDADOS: 'CONVIDADOS',
-    CONFIRMACOES: 'CONFIRMAÇÕES',
-    FORMS: 'FORMS'
-  },
-  CORS_ORIGINS: ['*'], // Permitir todos (ajustar depois)
-  VERSION: '3.0'
+  FOLDER_NAME: 'Sistema Presença - Dados',
+  VERSION: '3.1'
 };
 
 // ========================================
-// ENDPOINT PRINCIPAL
+// BUSCAR OU CRIAR PLANILHA POR EMAIL
 // ========================================
 
 /**
- * Recebe requisições POST do frontend
+ * Endpoint principal - recebe todas as requisições
  */
 function doPost(e) {
   try {
-    // Parse do payload
     const data = JSON.parse(e.postData.contents);
-    
-    // Log da requisição
     logRequest(data);
     
-    // Router de ações
     let result;
     switch(data.action) {
-      // Cliente
-      case 'createClient':
-        result = createClient(data);
+      case 'getOrCreateSpreadsheet':
+        result = getOrCreateSpreadsheet(data);
         break;
-      case 'getClient':
-        result = getClient(data);
-        break;
-        
-      // Eventos
       case 'createEvent':
         result = createEvent(data);
         break;
@@ -68,8 +45,6 @@ function doPost(e) {
       case 'deleteEvent':
         result = deleteEvent(data);
         break;
-        
-      // Convidados
       case 'addGuest':
         result = addGuest(data);
         break;
@@ -82,23 +57,12 @@ function doPost(e) {
       case 'getGuests':
         result = getGuests(data);
         break;
-      case 'updateStatus':
-        result = updateStatus(data);
-        break;
-        
-      // Formulários
       case 'createEventForm':
         result = createEventForm(data);
         break;
-      case 'getFormResponses':
-        result = getFormResponses(data);
-        break;
-        
-      // Sincronização
       case 'syncFormResponses':
         result = syncFormResponses(data);
         break;
-        
       default:
         result = errorResponse('Ação inválida: ' + data.action);
     }
@@ -111,9 +75,6 @@ function doPost(e) {
   }
 }
 
-/**
- * Recebe requisições GET (para testes)
- */
 function doGet(e) {
   return createResponse({
     success: true,
@@ -123,189 +84,209 @@ function doGet(e) {
 }
 
 // ========================================
-// CLIENTE (CRIAR PLANILHA)
+// BUSCAR/CRIAR PLANILHA POR EMAIL
 // ========================================
 
 /**
- * Cria novo cliente e sua planilha
+ * Busca planilha existente ou cria nova
  */
-function createClient(data) {
+function getOrCreateSpreadsheet(data) {
   try {
-    const { name, email, plan = 'basic' } = data;
+    const { email } = data;
     
-    if (!name || !email) {
-      return errorResponse('Nome e email são obrigatórios');
+    if (!email) {
+      return errorResponse('Email é obrigatório');
     }
     
-    // Gera ID único
-    const clientId = generateId();
+    // Busca planilha existente
+    const existing = findSpreadsheetByEmail(email);
     
-    // Cria planilha nova
-    const ss = SpreadsheetApp.create(`Sistema Presença - ${name}`);
-    const spreadsheetId = ss.getId();
-    const spreadsheetUrl = ss.getUrl();
-    
-    // Configura planilha
-    setupClientSpreadsheet(ss, clientId, name, email, plan);
-    
-    // Compartilha com cliente
-    try {
-      ss.addEditor(email);
-    } catch (e) {
-      Logger.log('Aviso: Não foi possível compartilhar automaticamente. Email: ' + email);
+    if (existing) {
+      // Planilha já existe
+      return successResponse({
+        spreadsheetId: existing.getId(),
+        spreadsheetUrl: existing.getUrl(),
+        email: email,
+        isNew: false,
+        message: 'Planilha encontrada'
+      });
     }
+    
+    // Não existe - criar nova
+    const newSpreadsheet = createSpreadsheetForEmail(email);
     
     return successResponse({
-      clientId: clientId,
-      spreadsheetId: spreadsheetId,
-      spreadsheetUrl: spreadsheetUrl,
-      name: name,
+      spreadsheetId: newSpreadsheet.getId(),
+      spreadsheetUrl: newSpreadsheet.getUrl(),
       email: email,
-      plan: plan,
-      createdAt: new Date().toISOString()
+      isNew: true,
+      message: 'Planilha criada'
     });
     
   } catch (error) {
-    return errorResponse('Erro ao criar cliente: ' + error.message);
+    return errorResponse('Erro ao buscar/criar planilha: ' + error.message);
   }
 }
 
 /**
- * Configura estrutura da planilha do cliente
+ * Busca planilha existente por email
  */
-function setupClientSpreadsheet(ss, clientId, name, email, plan) {
-  // Remove aba padrão e cria estrutura
-  const defaultSheet = ss.getSheets()[0];
-  
-  // Cria abas
-  const configSheet = defaultSheet.setName(CONFIG.SHEET_NAMES.CONFIG);
-  const eventsSheet = ss.insertSheet(CONFIG.SHEET_NAMES.EVENTOS);
-  const guestsSheet = ss.insertSheet(CONFIG.SHEET_NAMES.CONVIDADOS);
-  const confirmSheet = ss.insertSheet(CONFIG.SHEET_NAMES.CONFIRMACOES);
-  const formsSheet = ss.insertSheet(CONFIG.SHEET_NAMES.FORMS);
-  
-  // CONFIG
-  configSheet.getRange('A1:B1').setValues([['Chave', 'Valor']]);
-  configSheet.appendRow(['clientId', clientId]);
-  configSheet.appendRow(['name', name]);
-  configSheet.appendRow(['email', email]);
-  configSheet.appendRow(['plan', plan]);
-  configSheet.appendRow(['createdAt', new Date()]);
-  configSheet.appendRow(['apiVersion', CONFIG.VERSION]);
-  
-  // EVENTOS
-  eventsSheet.getRange('A1:H1').setValues([[
-    'EventID', 'Nome', 'Data', 'Descrição', 'Local', 
-    'FormURL', 'FormID', 'Criado Em'
-  ]]);
-  
-  // CONVIDADOS
-  guestsSheet.getRange('A1:I1').setValues([[
-    'GuestID', 'EventID', 'Nome', 'Telefone', 'Email', 
-    'Status', 'Origem', 'Criado Em', 'Atualizado Em'
-  ]]);
-  
-  // CONFIRMAÇÕES (Log)
-  confirmSheet.getRange('A1:F1').setValues([[
-    'Timestamp', 'EventID', 'GuestID', 'Nome', 'Status', 'Origem'
-  ]]);
-  
-  // FORMS
-  formsSheet.getRange('A1:E1').setValues([[
-    'FormID', 'EventID', 'FormURL', 'EditURL', 'Criado Em'
-  ]]);
-  
-  // Formata headers (todas as abas)
-  [configSheet, eventsSheet, guestsSheet, confirmSheet, formsSheet].forEach(sheet => {
-    const lastCol = sheet.getLastColumn();
-    if (lastCol > 0) {
-      sheet.getRange(1, 1, 1, lastCol)
-        .setBackground('#000000')
-        .setFontColor('#FFFFFF')
-        .setFontWeight('bold')
-        .setHorizontalAlignment('center');
-      
-      // Auto-resize
-      for (let i = 1; i <= lastCol; i++) {
-        sheet.autoResizeColumn(i);
-      }
+function findSpreadsheetByEmail(email) {
+  try {
+    const fileName = `Sistema Presença - ${email}`;
+    const files = DriveApp.getFilesByName(fileName);
+    
+    if (files.hasNext()) {
+      const file = files.next();
+      return SpreadsheetApp.open(file);
     }
-  });
+    
+    return null;
+    
+  } catch (error) {
+    Logger.log('Erro ao buscar planilha: ' + error.message);
+    return null;
+  }
+}
+
+/**
+ * Cria nova planilha para o email
+ */
+function createSpreadsheetForEmail(email) {
+  const fileName = `Sistema Presença - ${email}`;
   
-  // Protege aba CONFIG
-  const protection = configSheet.protect();
-  protection.setWarningOnly(true);
+  // Cria planilha
+  const ss = SpreadsheetApp.create(fileName);
+  
+  // Cria pasta se não existir
+  const folder = getOrCreateFolder();
+  
+  // Move pra pasta
+  const file = DriveApp.getFileById(ss.getId());
+  file.moveTo(folder);
+  
+  // Compartilha com usuário
+  try {
+    ss.addEditor(email);
+  } catch (e) {
+    Logger.log('Aviso: Não foi possível compartilhar com ' + email);
+  }
+  
+  // Configura primeira aba
+  const firstSheet = ss.getSheets()[0];
+  firstSheet.setName('📋 Instruções');
+  
+  // Adiciona instruções
+  firstSheet.getRange('A1').setValue('SISTEMA DE CONTROLE DE PRESENÇA');
+  firstSheet.getRange('A1').setFontSize(16).setFontWeight('bold');
+  
+  firstSheet.getRange('A3').setValue('Como usar:');
+  firstSheet.getRange('A4').setValue('1. Cada aba desta planilha = 1 evento');
+  firstSheet.getRange('A5').setValue('2. Crie eventos no sistema web');
+  firstSheet.getRange('A6').setValue('3. Abas serão criadas automaticamente aqui');
+  firstSheet.getRange('A7').setValue('4. Você pode abrir e ver seus dados a qualquer momento');
+  
+  firstSheet.getRange('A9').setValue('Email:').setFontWeight('bold');
+  firstSheet.getRange('B9').setValue(email);
+  
+  firstSheet.getRange('A10').setValue('Criado em:').setFontWeight('bold');
+  firstSheet.getRange('B10').setValue(new Date());
+  
+  // Formata
+  firstSheet.setColumnWidth(1, 150);
+  firstSheet.setColumnWidth(2, 300);
   
   return ss;
 }
 
 /**
- * Busca dados do cliente
+ * Busca ou cria pasta
  */
-function getClient(data) {
-  try {
-    const { spreadsheetId } = data;
-    
-    if (!spreadsheetId) {
-      return errorResponse('spreadsheetId é obrigatório');
-    }
-    
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    const configSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONFIG);
-    const configData = configSheet.getDataRange().getValues();
-    
-    // Converte array para objeto
-    const config = {};
-    for (let i = 1; i < configData.length; i++) {
-      config[configData[i][0]] = configData[i][1];
-    }
-    
-    return successResponse(config);
-    
-  } catch (error) {
-    return errorResponse('Erro ao buscar cliente: ' + error.message);
+function getOrCreateFolder() {
+  const folders = DriveApp.getFoldersByName(CONFIG.FOLDER_NAME);
+  
+  if (folders.hasNext()) {
+    return folders.next();
   }
+  
+  return DriveApp.createFolder(CONFIG.FOLDER_NAME);
 }
 
 // ========================================
-// EVENTOS
+// EVENTOS (ABAS NA PLANILHA)
 // ========================================
 
 /**
- * Cria novo evento
+ * Cria novo evento (nova aba)
  */
 function createEvent(data) {
   try {
-    const { spreadsheetId, name, date, description = '', location = '' } = data;
+    const { spreadsheetId, name, date, description } = data;
     
     if (!spreadsheetId || !name) {
       return errorResponse('spreadsheetId e name são obrigatórios');
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const eventsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.EVENTOS);
     
-    const eventId = generateId();
-    const createdAt = new Date();
+    // Verifica se já existe aba com esse nome
+    let sheet = ss.getSheetByName(name);
     
-    eventsSheet.appendRow([
-      eventId,
-      name,
-      date || '',
-      description,
-      location,
-      '', // FormURL (será preenchido depois)
-      '', // FormID (será preenchido depois)
-      createdAt
-    ]);
+    if (sheet) {
+      // Aba já existe, retorna ela
+      return successResponse({
+        eventId: name,
+        name: name,
+        date: date || '',
+        description: description || '',
+        sheetName: name,
+        alreadyExists: true
+      });
+    }
+    
+    // Cria nova aba
+    sheet = ss.insertSheet(name);
+    
+    // Headers
+    sheet.getRange('A1:F1').setValues([[
+      'Nome',
+      'Telefone',
+      'Email',
+      'Status',
+      'Adicionado Em',
+      'Observações'
+    ]]);
+    
+    // Formata header
+    sheet.getRange('A1:F1')
+      .setBackground('#000000')
+      .setFontColor('#FFFFFF')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    
+    // Auto-resize
+    for (let i = 1; i <= 6; i++) {
+      sheet.autoResizeColumn(i);
+    }
+    
+    // Congela header
+    sheet.setFrozenRows(1);
+    
+    // Adiciona nota na aba de instruções
+    const infoSheet = ss.getSheetByName('📋 Instruções');
+    if (infoSheet) {
+      const lastRow = infoSheet.getLastRow();
+      infoSheet.getRange(lastRow + 1, 1).setValue(`✓ Evento criado: ${name}`);
+      infoSheet.getRange(lastRow + 1, 2).setValue(new Date());
+    }
     
     return successResponse({
-      eventId: eventId,
+      eventId: name,
       name: name,
-      date: date,
-      description: description,
-      location: location,
-      createdAt: createdAt.toISOString()
+      date: date || '',
+      description: description || '',
+      sheetName: name,
+      createdAt: new Date().toISOString()
     });
     
   } catch (error) {
@@ -314,7 +295,7 @@ function createEvent(data) {
 }
 
 /**
- * Lista eventos
+ * Lista eventos (abas da planilha)
  */
 function getEvents(data) {
   try {
@@ -325,22 +306,25 @@ function getEvents(data) {
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const eventsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.EVENTOS);
-    const eventsData = eventsSheet.getDataRange().getValues();
+    const sheets = ss.getSheets();
     
     const events = [];
-    for (let i = 1; i < eventsData.length; i++) {
+    
+    sheets.forEach(sheet => {
+      const name = sheet.getName();
+      
+      // Pula aba de instruções
+      if (name === '📋 Instruções') {
+        return;
+      }
+      
       events.push({
-        id: eventsData[i][0],
-        name: eventsData[i][1],
-        date: eventsData[i][2],
-        description: eventsData[i][3],
-        location: eventsData[i][4],
-        formUrl: eventsData[i][5],
-        formId: eventsData[i][6],
-        createdAt: eventsData[i][7]
+        id: name,
+        name: name,
+        sheetName: name,
+        guestCount: Math.max(0, sheet.getLastRow() - 1) // -1 pra não contar header
       });
-    }
+    });
     
     return successResponse({ events: events });
     
@@ -350,33 +334,31 @@ function getEvents(data) {
 }
 
 /**
- * Atualiza evento
+ * Atualiza evento (renomeia aba)
  */
 function updateEvent(data) {
   try {
-    const { spreadsheetId, eventId, updates } = data;
+    const { spreadsheetId, eventId, newName } = data;
     
-    if (!spreadsheetId || !eventId || !updates) {
-      return errorResponse('spreadsheetId, eventId e updates são obrigatórios');
+    if (!spreadsheetId || !eventId || !newName) {
+      return errorResponse('Dados incompletos');
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const eventsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.EVENTOS);
-    const eventsData = eventsSheet.getDataRange().getValues();
+    const sheet = ss.getSheetByName(eventId);
     
-    // Encontra evento
-    for (let i = 1; i < eventsData.length; i++) {
-      if (eventsData[i][0] === eventId) {
-        if (updates.name !== undefined) eventsSheet.getRange(i + 1, 2).setValue(updates.name);
-        if (updates.date !== undefined) eventsSheet.getRange(i + 1, 3).setValue(updates.date);
-        if (updates.description !== undefined) eventsSheet.getRange(i + 1, 4).setValue(updates.description);
-        if (updates.location !== undefined) eventsSheet.getRange(i + 1, 5).setValue(updates.location);
-        
-        return successResponse({ updated: true });
-      }
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
     }
     
-    return errorResponse('Evento não encontrado');
+    // Renomeia aba
+    sheet.setName(newName);
+    
+    return successResponse({
+      eventId: newName,
+      name: newName,
+      oldName: eventId
+    });
     
   } catch (error) {
     return errorResponse('Erro ao atualizar evento: ' + error.message);
@@ -384,29 +366,27 @@ function updateEvent(data) {
 }
 
 /**
- * Deleta evento
+ * Deleta evento (deleta aba)
  */
 function deleteEvent(data) {
   try {
     const { spreadsheetId, eventId } = data;
     
     if (!spreadsheetId || !eventId) {
-      return errorResponse('spreadsheetId e eventId são obrigatórios');
+      return errorResponse('Dados incompletos');
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const eventsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.EVENTOS);
-    const eventsData = eventsSheet.getDataRange().getValues();
+    const sheet = ss.getSheetByName(eventId);
     
-    // Encontra e deleta
-    for (let i = 1; i < eventsData.length; i++) {
-      if (eventsData[i][0] === eventId) {
-        eventsSheet.deleteRow(i + 1);
-        return successResponse({ deleted: true });
-      }
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
     }
     
-    return errorResponse('Evento não encontrado');
+    // Deleta aba
+    ss.deleteSheet(sheet);
+    
+    return successResponse({ deleted: true, eventId: eventId });
     
   } catch (error) {
     return errorResponse('Erro ao deletar evento: ' + error.message);
@@ -414,11 +394,11 @@ function deleteEvent(data) {
 }
 
 // ========================================
-// CONVIDADOS
+// CONVIDADOS (LINHAS NA ABA)
 // ========================================
 
 /**
- * Adiciona convidado
+ * Adiciona convidado (adiciona linha)
  */
 function addGuest(data) {
   try {
@@ -429,113 +409,31 @@ function addGuest(data) {
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const guestsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONVIDADOS);
+    const sheet = ss.getSheetByName(eventId);
     
-    const guestId = generateId();
-    const createdAt = new Date();
-    
-    // Usa lock para evitar race condition
-    const lock = LockService.getScriptLock();
-    lock.waitLock(10000);
-    
-    try {
-      guestsSheet.appendRow([
-        guestId,
-        eventId,
-        guest.name,
-        guest.phone || '',
-        guest.email || '',
-        guest.status || 'pending',
-        guest.origin || 'manual',
-        createdAt,
-        createdAt
-      ]);
-    } finally {
-      lock.releaseLock();
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
     }
     
-    // Log confirmação
-    logConfirmation(ss, eventId, guestId, guest.name, guest.status || 'pending', guest.origin || 'manual');
+    // Adiciona linha
+    sheet.appendRow([
+      guest.name,
+      guest.phone || '',
+      guest.email || '',
+      guest.status || 'pending',
+      new Date(),
+      guest.notes || ''
+    ]);
     
     return successResponse({
-      guestId: guestId,
+      guestId: sheet.getLastRow(), // Usa número da linha como ID
       eventId: eventId,
       name: guest.name,
-      status: guest.status || 'pending',
-      createdAt: createdAt.toISOString()
+      addedAt: new Date().toISOString()
     });
     
   } catch (error) {
     return errorResponse('Erro ao adicionar convidado: ' + error.message);
-  }
-}
-
-/**
- * Atualiza convidado
- */
-function updateGuest(data) {
-  try {
-    const { spreadsheetId, guestId, updates } = data;
-    
-    if (!spreadsheetId || !guestId || !updates) {
-      return errorResponse('Dados incompletos');
-    }
-    
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    const guestsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONVIDADOS);
-    const guestsData = guestsSheet.getDataRange().getValues();
-    
-    for (let i = 1; i < guestsData.length; i++) {
-      if (guestsData[i][0] === guestId) {
-        if (updates.name !== undefined) guestsSheet.getRange(i + 1, 3).setValue(updates.name);
-        if (updates.phone !== undefined) guestsSheet.getRange(i + 1, 4).setValue(updates.phone);
-        if (updates.email !== undefined) guestsSheet.getRange(i + 1, 5).setValue(updates.email);
-        if (updates.status !== undefined) guestsSheet.getRange(i + 1, 6).setValue(updates.status);
-        
-        guestsSheet.getRange(i + 1, 9).setValue(new Date());
-        
-        return successResponse({ updated: true });
-      }
-    }
-    
-    return errorResponse('Convidado não encontrado');
-    
-  } catch (error) {
-    return errorResponse('Erro ao atualizar convidado: ' + error.message);
-  }
-}
-
-/**
- * Atualiza status do convidado
- */
-function updateStatus(data) {
-  try {
-    const { spreadsheetId, guestId, status, eventId } = data;
-    
-    if (!spreadsheetId || !guestId || !status) {
-      return errorResponse('spreadsheetId, guestId e status são obrigatórios');
-    }
-    
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    const guestsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONVIDADOS);
-    const guestsData = guestsSheet.getDataRange().getValues();
-    
-    for (let i = 1; i < guestsData.length; i++) {
-      if (guestsData[i][0] === guestId) {
-        guestsSheet.getRange(i + 1, 6).setValue(status);
-        guestsSheet.getRange(i + 1, 9).setValue(new Date());
-        
-        // Log
-        logConfirmation(ss, eventId || guestsData[i][1], guestId, guestsData[i][2], status, 'update');
-        
-        return successResponse({ updated: true, status: status });
-      }
-    }
-    
-    return errorResponse('Convidado não encontrado');
-    
-  } catch (error) {
-    return errorResponse('Erro ao atualizar status: ' + error.message);
   }
 }
 
@@ -547,28 +445,32 @@ function getGuests(data) {
     const { spreadsheetId, eventId } = data;
     
     if (!spreadsheetId || !eventId) {
-      return errorResponse('spreadsheetId e eventId são obrigatórios');
+      return errorResponse('Dados incompletos');
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const guestsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONVIDADOS);
-    const guestsData = guestsSheet.getDataRange().getValues();
+    const sheet = ss.getSheetByName(eventId);
+    
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
+    }
+    
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
     
     const guests = [];
-    for (let i = 1; i < guestsData.length; i++) {
-      if (guestsData[i][1] === eventId) {
-        guests.push({
-          id: guestsData[i][0],
-          eventId: guestsData[i][1],
-          name: guestsData[i][2],
-          phone: guestsData[i][3],
-          email: guestsData[i][4],
-          status: guestsData[i][5],
-          origin: guestsData[i][6],
-          createdAt: guestsData[i][7],
-          updatedAt: guestsData[i][8]
-        });
-      }
+    
+    // Pula header (linha 1)
+    for (let i = 1; i < values.length; i++) {
+      guests.push({
+        id: i + 1, // Número da linha
+        name: values[i][0],
+        phone: values[i][1],
+        email: values[i][2],
+        status: values[i][3],
+        addedAt: values[i][4],
+        notes: values[i][5]
+      });
     }
     
     return successResponse({ guests: guests });
@@ -579,28 +481,61 @@ function getGuests(data) {
 }
 
 /**
+ * Atualiza convidado
+ */
+function updateGuest(data) {
+  try {
+    const { spreadsheetId, eventId, guestId, updates } = data;
+    
+    if (!spreadsheetId || !eventId || !guestId) {
+      return errorResponse('Dados incompletos');
+    }
+    
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheet = ss.getSheetByName(eventId);
+    
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
+    }
+    
+    const row = guestId; // guestId É o número da linha
+    
+    // Atualiza células
+    if (updates.name !== undefined) sheet.getRange(row, 1).setValue(updates.name);
+    if (updates.phone !== undefined) sheet.getRange(row, 2).setValue(updates.phone);
+    if (updates.email !== undefined) sheet.getRange(row, 3).setValue(updates.email);
+    if (updates.status !== undefined) sheet.getRange(row, 4).setValue(updates.status);
+    if (updates.notes !== undefined) sheet.getRange(row, 6).setValue(updates.notes);
+    
+    return successResponse({ updated: true });
+    
+  } catch (error) {
+    return errorResponse('Erro ao atualizar convidado: ' + error.message);
+  }
+}
+
+/**
  * Deleta convidado
  */
 function deleteGuest(data) {
   try {
-    const { spreadsheetId, guestId } = data;
+    const { spreadsheetId, eventId, guestId } = data;
     
-    if (!spreadsheetId || !guestId) {
-      return errorResponse('spreadsheetId e guestId são obrigatórios');
+    if (!spreadsheetId || !eventId || !guestId) {
+      return errorResponse('Dados incompletos');
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
-    const guestsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONVIDADOS);
-    const guestsData = guestsSheet.getDataRange().getValues();
+    const sheet = ss.getSheetByName(eventId);
     
-    for (let i = 1; i < guestsData.length; i++) {
-      if (guestsData[i][0] === guestId) {
-        guestsSheet.deleteRow(i + 1);
-        return successResponse({ deleted: true });
-      }
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
     }
     
-    return errorResponse('Convidado não encontrado');
+    // Deleta linha
+    sheet.deleteRow(guestId);
+    
+    return successResponse({ deleted: true });
     
   } catch (error) {
     return errorResponse('Erro ao deletar convidado: ' + error.message);
@@ -608,100 +543,51 @@ function deleteGuest(data) {
 }
 
 // ========================================
-// GOOGLE FORMS (FORMULÁRIO POR EVENTO)
+// FORMULÁRIOS GOOGLE FORMS
 // ========================================
 
 /**
- * Cria Google Form para um evento
+ * Cria Google Form para evento
  */
 function createEventForm(data) {
   try {
-    const { spreadsheetId, eventId, eventName, eventDate } = data;
+    const { spreadsheetId, eventId, eventName } = data;
     
-    if (!spreadsheetId || !eventId || !eventName) {
+    if (!spreadsheetId || !eventId) {
       return errorResponse('Dados incompletos');
     }
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheet = ss.getSheetByName(eventId);
+    
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
+    }
     
     // Cria formulário
-    const form = FormApp.create(`Confirmação - ${eventName}`);
-    const formId = form.getId();
+    const form = FormApp.create(`Confirmação - ${eventName || eventId}`);
     
-    // Configurações
-    form.setTitle(`🎉 ${eventName}`);
-    form.setDescription(
-      `Confirme sua presença!\n\n` +
-      (eventDate ? `📅 Data: ${eventDate}\n` : '') +
-      `\nPreencha os dados abaixo para confirmar.`
-    );
+    form.setTitle(`🎉 ${eventName || eventId}`);
+    form.setDescription('Confirme sua presença preenchendo o formulário abaixo:');
     form.setCollectEmail(false);
-    form.setLimitOneResponsePerUser(false);
-    form.setShowLinkToRespondAgain(false);
-    form.setConfirmationMessage('✅ Presença confirmada com sucesso! Obrigado!');
+    form.setConfirmationMessage('✅ Presença confirmada! Obrigado!');
     
-    // Campo oculto: EventID
-    form.addTextItem()
-      .setTitle('EventID')
-      .setHelpText('(não altere)')
-      .setRequired(false);
-    form.getItems()[0].asTextItem().setGeneralFeedbackText(
-      FormApp.createFeedback().setText(eventId).build()
-    );
-    
-    // Campos visíveis
-    form.addTextItem()
-      .setTitle('Nome Completo')
-      .setRequired(true);
-    
-    form.addTextItem()
-      .setTitle('Telefone')
-      .setHelpText('Exemplo: (21) 99999-9999')
-      .setRequired(false);
-    
-    form.addTextItem()
-      .setTitle('Email')
-      .setRequired(false);
-    
+    // Campos
+    form.addTextItem().setTitle('Nome Completo').setRequired(true);
+    form.addTextItem().setTitle('Telefone').setHelpText('(21) 99999-9999');
+    form.addTextItem().setTitle('Email');
     form.addMultipleChoiceItem()
       .setTitle('Você vai comparecer?')
       .setChoiceValues(['✅ Sim, estarei presente', '❌ Não poderei comparecer'])
       .setRequired(true);
     
-    // Define destino das respostas
-    const formSheet = ss.insertSheet(`Form_${eventId.substr(0, 8)}`);
+    // Define destino (mesma planilha, nova aba)
     form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
     
-    // URLs
-    const formUrl = form.getPublishedUrl();
-    const editUrl = form.getEditUrl();
-    
-    // Salva info do form
-    const formsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.FORMS);
-    formsSheet.appendRow([
-      formId,
-      eventId,
-      formUrl,
-      editUrl,
-      new Date()
-    ]);
-    
-    // Atualiza evento com URLs
-    const eventsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.EVENTOS);
-    const eventsData = eventsSheet.getDataRange().getValues();
-    for (let i = 1; i < eventsData.length; i++) {
-      if (eventsData[i][0] === eventId) {
-        eventsSheet.getRange(i + 1, 6).setValue(formUrl);
-        eventsSheet.getRange(i + 1, 7).setValue(formId);
-        break;
-      }
-    }
-    
     return successResponse({
-      formId: formId,
-      formUrl: formUrl,
-      editUrl: editUrl,
-      eventId: eventId
+      formId: form.getId(),
+      formUrl: form.getPublishedUrl(),
+      editUrl: form.getEditUrl()
     });
     
   } catch (error) {
@@ -710,83 +596,33 @@ function createEventForm(data) {
 }
 
 /**
- * Busca respostas do formulário
- */
-function getFormResponses(data) {
-  try {
-    const { formId } = data;
-    
-    if (!formId) {
-      return errorResponse('formId é obrigatório');
-    }
-    
-    const form = FormApp.openById(formId);
-    const responses = form.getResponses();
-    
-    const results = [];
-    responses.forEach(response => {
-      const itemResponses = response.getItemResponses();
-      const data = {
-        timestamp: response.getTimestamp(),
-        responseId: response.getId()
-      };
-      
-      itemResponses.forEach(item => {
-        data[item.getItem().getTitle()] = item.getResponse();
-      });
-      
-      results.push(data);
-    });
-    
-    return successResponse({ responses: results });
-    
-  } catch (error) {
-    return errorResponse('Erro ao buscar respostas: ' + error.message);
-  }
-}
-
-/**
- * Sincroniza respostas do formulário com a lista de convidados
+ * Sincroniza respostas do formulário
  */
 function syncFormResponses(data) {
   try {
-    const { spreadsheetId, eventId } = data;
+    const { spreadsheetId, eventId, formId } = data;
     
-    if (!spreadsheetId || !eventId) {
-      return errorResponse('spreadsheetId e eventId são obrigatórios');
+    if (!spreadsheetId || !eventId || !formId) {
+      return errorResponse('Dados incompletos');
     }
     
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    
-    // Busca FormID
-    const formsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.FORMS);
-    const formsData = formsSheet.getDataRange().getValues();
-    let formId = null;
-    
-    for (let i = 1; i < formsData.length; i++) {
-      if (formsData[i][1] === eventId) {
-        formId = formsData[i][0];
-        break;
-      }
-    }
-    
-    if (!formId) {
-      return errorResponse('Formulário não encontrado para este evento');
-    }
-    
-    // Busca respostas
     const form = FormApp.openById(formId);
     const responses = form.getResponses();
     
-    const guestsSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONVIDADOS);
-    let syncedCount = 0;
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const sheet = ss.getSheetByName(eventId);
     
-    // Processa cada resposta
+    if (!sheet) {
+      return errorResponse('Evento não encontrado');
+    }
+    
+    let synced = 0;
+    
     responses.forEach(response => {
-      const itemResponses = response.getItemResponses();
+      const items = response.getItemResponses();
       const responseData = {};
       
-      itemResponses.forEach(item => {
+      items.forEach(item => {
         responseData[item.getItem().getTitle()] = item.getResponse();
       });
       
@@ -797,46 +633,15 @@ function syncFormResponses(data) {
       const status = statusText && statusText.includes('Sim') ? 'yes' : 'no';
       
       if (name) {
-        // Verifica se já existe
-        const guestsData = guestsSheet.getDataRange().getValues();
-        let exists = false;
-        
-        for (let i = 1; i < guestsData.length; i++) {
-          if (guestsData[i][1] === eventId && guestsData[i][2] === name) {
-            // Atualiza existente
-            guestsSheet.getRange(i + 1, 6).setValue(status);
-            guestsSheet.getRange(i + 1, 9).setValue(new Date());
-            exists = true;
-            syncedCount++;
-            break;
-          }
-        }
-        
-        if (!exists) {
-          // Adiciona novo
-          const guestId = generateId();
-          guestsSheet.appendRow([
-            guestId,
-            eventId,
-            name,
-            phone,
-            email,
-            status,
-            'form',
-            new Date(),
-            new Date()
-          ]);
-          
-          logConfirmation(ss, eventId, guestId, name, status, 'form');
-          syncedCount++;
-        }
+        // Adiciona na planilha
+        sheet.appendRow([name, phone, email, status, new Date(), 'Via formulário']);
+        synced++;
       }
     });
     
     return successResponse({
-      synced: true,
-      count: syncedCount,
-      totalResponses: responses.length
+      synced: synced,
+      total: responses.length
     });
     
   } catch (error) {
@@ -848,16 +653,6 @@ function syncFormResponses(data) {
 // HELPERS
 // ========================================
 
-/**
- * Gera ID único
- */
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-}
-
-/**
- * Cria resposta de sucesso
- */
 function successResponse(data) {
   return {
     success: true,
@@ -866,9 +661,6 @@ function successResponse(data) {
   };
 }
 
-/**
- * Cria resposta de erro
- */
 function errorResponse(message) {
   return {
     success: false,
@@ -877,62 +669,17 @@ function errorResponse(message) {
   };
 }
 
-/**
- * Cria resposta HTTP com CORS
- */
 function createResponse(data) {
-  const output = ContentService.createTextOutput(JSON.stringify(data));
-  output.setMimeType(ContentService.MimeType.JSON);
-  
-  // CORS headers
-  return output;
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * Log de confirmação
- */
-function logConfirmation(ss, eventId, guestId, name, status, origin) {
-  try {
-    const confirmSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONFIRMACOES);
-    confirmSheet.appendRow([
-      new Date(),
-      eventId,
-      guestId,
-      name,
-      status,
-      origin
-    ]);
-  } catch (e) {
-    Logger.log('Erro ao logar confirmação: ' + e.message);
-  }
-}
-
-/**
- * Log de requisição
- */
 function logRequest(data) {
   Logger.log('Action: ' + data.action);
-  Logger.log('Data: ' + JSON.stringify(data));
 }
 
-/**
- * Log de erro
- */
 function logError(error) {
   Logger.log('ERRO: ' + error.message);
   Logger.log('Stack: ' + error.stack);
-}
-
-// ========================================
-// TRIGGERS (OPCIONAL - AUTOMAÇÃO)
-// ========================================
-
-/**
- * Sincroniza automaticamente a cada X minutos
- * (Configurar trigger manual no Apps Script)
- */
-function autoSyncAllForms() {
-  // Busca todas as planilhas ativas
-  // Sincroniza respostas de forms automaticamente
-  // Implementar se necessário
 }
