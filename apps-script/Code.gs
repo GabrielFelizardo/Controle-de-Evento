@@ -1,11 +1,45 @@
-/**
- * SISTEMA DE PRESENÇA - APPS SCRIPT v3.1
- * Sistema baseado em EMAIL
- * 1 planilha por usuário
- * Cada evento = 1 aba na planilha
- * 
- * Desenvolvido por: Gabriel Felizardo
- */
+function autorizarPermissoes() {
+  try {
+    Logger.log('🔍 Testando acesso ao Drive...');
+    
+    // Testa acesso ao Drive
+    const folders = DriveApp.getFoldersByName('teste');
+    Logger.log('✅ Drive OK');
+    
+    // Testa criação de planilha
+    Logger.log('📊 Testando criação de planilha...');
+    const ss = SpreadsheetApp.create('Teste Autorização - Pode Deletar');
+    Logger.log('✅ Planilha criada: ' + ss.getId());
+    
+    // Deleta a planilha teste
+    Logger.log('🗑️ Deletando planilha teste...');
+    DriveApp.getFileById(ss.getId()).setTrashed(true);
+    Logger.log('✅ Planilha teste deletada');
+    
+    Logger.log('');
+    Logger.log('🎉 SUCESSO!');
+    Logger.log('✅ Todas as permissões foram autorizadas!');
+    Logger.log('✅ Agora você pode usar o sistema normalmente.');
+    
+    return {
+      success: true,
+      message: '✅ Autorização concluída! Pode usar o sistema.'
+    };
+    
+  } catch (error) {
+    Logger.log('❌ ERRO: ' + error.toString());
+    Logger.log('');
+    Logger.log('Se o erro for de permissão:');
+    Logger.log('1. Verifique se o appsscript.json tem as permissões necessárias');
+    Logger.log('2. Tente executar a função novamente');
+    Logger.log('3. Autorize quando o Google pedir');
+    
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
 
 // ========================================
 // CONFIGURAÇÕES
