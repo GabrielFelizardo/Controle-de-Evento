@@ -158,4 +158,3 @@ if (document.readyState === 'loading') {
 
 window.App = App;
 console.log('✅ App v3.1.1 carregado');
-```
