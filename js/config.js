@@ -1,109 +1,218 @@
 /**
- * CONFIGURAÇÃO DA API v3.0
- * Google Apps Script + Sheets
+ * SINCRONIZAÇÃO COM PLANILHA v3.1.0
+ * Intercepta operações locais e sincroniza com Sheets
+ * 
+ * ✅ CORRIGIDO: parâmetro location em createEvent
  */
 
-const API_CONFIG = {
-  // ✅ URL DO APPS SCRIPT CONFIGURADA:
-  API_URL: localStorage.getItem('apiUrl') || 'https://script.google.com/macros/s/AKfycbxsGjeJ_KnQIFlwKpZiCfA4YYGYucBcCbJWyyt8dBX-40YNOeK1O04oxeyDLwFZrwH4ig/exec',
+const SheetSync = {
+  /**
+   * Ativa sincronização
+   */
+  enable() {
+    this.interceptEventOperations();
+    this.interceptGuestOperations();
+    console.log('✅ Sincronização com planilha ativada');
+  },
   
-  // ID da planilha do cliente (será preenchido automaticamente)
-  SPREADSHEET_ID: localStorage.getItem('spreadsheetId') || null,
+  // ========================================
+  // EVENTOS
+  // ========================================
   
-  // Configurações de sincronização
-  SYNC_INTERVAL: 10000, // 10 segundos
-  ENABLE_AUTO_SYNC: true,
+  /**
+   * Intercepta operações de eventos
+   */
+  interceptEventOperations() {
+    // Salva funções originais
+    const originalCreateEvent = State.createEvent;
+    const originalDeleteEvent = State.deleteEvent;
+    
+    // Sobrescreve createEvent
+    State.createEvent = async function(name, date) {
+      console.log('📝 Criando evento:', name);
+      
+      try {
+        // 1. Cria na planilha primeiro
+        // ✅ CORRIGIDO: adicionado 4º parâmetro (location)
+        const result = await API.createEvent(name, date || '', '', '');
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao criar evento na planilha');
+        }
+        
+        // 2. Cria local
+        const localEvent = {
+          id: result.data.eventId,
+          name: name,
+          date: date || '',
+          guests: [],
+          createdAt: new Date(),
+          sheetName: result.data.sheetName
+        };
+        
+        State.events.push(localEvent);
+        Storage.save();
+        
+        console.log('✅ Evento criado:', localEvent);
+        return localEvent;
+        
+      } catch (error) {
+        console.error('❌ Erro ao criar evento:', error);
+        alert('Erro ao criar evento: ' + error.message);
+        return null;
+      }
+    };
+    
+    // Sobrescreve deleteEvent
+    State.deleteEvent = async function(eventId) {
+      console.log('🗑️ Deletando evento:', eventId);
+      
+      try {
+        // 1. Deleta da planilha
+        const result = await API.deleteEvent(eventId);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao deletar evento');
+        }
+        
+        // 2. Deleta local
+        const index = State.events.findIndex(e => e.id === eventId);
+        if (index > -1) {
+          State.events.splice(index, 1);
+          Storage.save();
+        }
+        
+        console.log('✅ Evento deletado');
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Erro ao deletar evento:', error);
+        alert('Erro ao deletar evento: ' + error.message);
+        return false;
+      }
+    };
+  },
   
-  // Modo de operação
-  USE_SHEETS: true, // ✅ API configurada
+  // ========================================
+  // CONVIDADOS
+  // ========================================
   
-  // Versão
-  VERSION: '3.1'
+  /**
+   * Intercepta operações de convidados
+   */
+  interceptGuestOperations() {
+    // Salva funções originais
+    const originalAddGuest = State.addGuest;
+    const originalUpdateGuest = State.updateGuestStatus;
+    const originalDeleteGuest = State.deleteGuest;
+    
+    // Sobrescreve addGuest
+    State.addGuest = async function(eventId, guest) {
+      console.log('👤 Adicionando convidado:', guest.name);
+      
+      try {
+        // 1. Adiciona na planilha
+        const result = await API.addGuest(eventId, guest);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao adicionar convidado');
+        }
+        
+        // 2. Adiciona local
+        const event = State.events.find(e => e.id === eventId);
+        if (!event) {
+          throw new Error('Evento não encontrado');
+        }
+        
+        const localGuest = {
+          id: result.data.guestId,
+          name: guest.name,
+          phone: guest.phone || '',
+          email: guest.email || '',
+          status: guest.status || 'pending',
+          notes: guest.notes || ''
+        };
+        
+        event.guests.push(localGuest);
+        Storage.save();
+        
+        console.log('✅ Convidado adicionado:', localGuest);
+        return localGuest;
+        
+      } catch (error) {
+        console.error('❌ Erro ao adicionar convidado:', error);
+        alert('Erro ao adicionar convidado: ' + error.message);
+        return null;
+      }
+    };
+    
+    // Sobrescreve updateGuestStatus
+    State.updateGuestStatus = async function(eventId, guestId, status) {
+      console.log('🔄 Atualizando status:', guestId, status);
+      
+      try {
+        // 1. Atualiza na planilha
+        const result = await API.updateGuest(eventId, guestId, { status: status });
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao atualizar status');
+        }
+        
+        // 2. Atualiza local
+        const event = State.events.find(e => e.id === eventId);
+        if (event) {
+          const guest = event.guests.find(g => g.id === guestId);
+          if (guest) {
+            guest.status = status;
+            Storage.save();
+          }
+        }
+        
+        console.log('✅ Status atualizado');
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Erro ao atualizar status:', error);
+        alert('Erro ao atualizar status: ' + error.message);
+        return false;
+      }
+    };
+    
+    // Sobrescreve deleteGuest
+    State.deleteGuest = async function(eventId, guestId) {
+      console.log('🗑️ Deletando convidado:', guestId);
+      
+      try {
+        // 1. Deleta da planilha
+        const result = await API.deleteGuest(eventId, guestId);
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao deletar convidado');
+        }
+        
+        // 2. Deleta local
+        const event = State.events.find(e => e.id === eventId);
+        if (event) {
+          const index = event.guests.findIndex(g => g.id === guestId);
+          if (index > -1) {
+            event.guests.splice(index, 1);
+            Storage.save();
+          }
+        }
+        
+        console.log('✅ Convidado deletado');
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Erro ao deletar convidado:', error);
+        alert('Erro ao deletar convidado: ' + error.message);
+        return false;
+      }
+    };
+  }
 };
 
-/**
- * Salva URL da API
- */
-function setApiUrl(url) {
-  localStorage.setItem('apiUrl', url);
-  API_CONFIG.API_URL = url;
-  API_CONFIG.USE_SHEETS = true;
-  console.log('✅ API URL configurada:', url);
-}
+// Exporta
+window.SheetSync = SheetSync;
 
-/**
- * Salva spreadsheetId
- */
-function setSpreadsheetId(id) {
-  localStorage.setItem('spreadsheetId', id);
-  API_CONFIG.SPREADSHEET_ID = id;
-  console.log('✅ Spreadsheet ID configurado:', id);
-}
-
-/**
- * Obtém spreadsheetId
- */
-function getSpreadsheetId() {
-  return API_CONFIG.SPREADSHEET_ID;
-}
-
-/**
- * Obtém URL da API
- */
-function getApiUrl() {
-  return API_CONFIG.API_URL;
-}
-
-/**
- * Verifica se API está configurada
- */
-function isApiConfigured() {
-  return !!(API_CONFIG.API_URL && API_CONFIG.SPREADSHEET_ID);
-}
-
-/**
- * Limpa configuração (útil para testes)
- */
-function clearApiConfig() {
-  localStorage.removeItem('apiUrl');
-  localStorage.removeItem('spreadsheetId');
-  API_CONFIG.API_URL = '';
-  API_CONFIG.SPREADSHEET_ID = null;
-  API_CONFIG.USE_SHEETS = false;
-  console.log('✅ Configuração da API limpa');
-}
-
-// Log inicial
-console.log('📊 API Config v' + API_CONFIG.VERSION);
-if (isApiConfigured()) {
-  console.log('✅ API configurada e pronta');
-  console.log('  - Spreadsheet:', API_CONFIG.SPREADSHEET_ID);
-} else {
-  console.log('⚠️ API não configurada - usando modo local');
-  console.log('  Execute: setupApi("sua-url-do-apps-script")');
-}
-
-/**
- * Setup inicial (chamar uma vez)
- */
-function setupApi(apiUrl) {
-  if (!apiUrl) {
-    console.error('❌ Forneça a URL do Apps Script');
-    console.log('Exemplo: setupApi("https://script.google.com/macros/s/ABC123/exec")');
-    return;
-  }
-  
-  setApiUrl(apiUrl);
-  console.log('✅ API configurada!');
-  console.log('Próximo passo: criar cliente com API.createClient("Nome", "email@example.com")');
-}
-
-// Exporta para window
-window.API_CONFIG = API_CONFIG;
-window.setApiUrl = setApiUrl;
-window.setSpreadsheetId = setSpreadsheetId;
-window.getSpreadsheetId = getSpreadsheetId;
-window.getApiUrl = getApiUrl;
-window.isApiConfigured = isApiConfigured;
-window.clearApiConfig = clearApiConfig;
-window.setupApi = setupApi;
+console.log('🔄 Sheet Sync v3.1.0 carregado');
