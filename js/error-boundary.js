@@ -1,6 +1,7 @@
 /**
- * ERROR BOUNDARY v3.1.0
+ * ERROR BOUNDARY v3.1.1
  * Proteção global contra crashes
+ * ✅ CORRIGIDO: Verifica se função existe antes de fazer wrap
  */
 
 const ErrorBoundary = {
@@ -8,6 +9,12 @@ const ErrorBoundary = {
    * Envolve função async com try-catch
    */
   wrap(fn, context = 'Operação') {
+    // ✅ Valida se fn existe e é função
+    if (!fn || typeof fn !== 'function') {
+      console.warn(`⚠️ Tentou fazer wrap de função inválida: ${context}`);
+      return fn;
+    }
+    
     return async function(...args) {
       try {
         return await fn.apply(this, args);
@@ -53,12 +60,23 @@ const ErrorBoundary = {
   }
 };
 
-// Protege APIs críticas
+// ✅ CORRIGIDO: Protege apenas funções que existem
 if (typeof State !== 'undefined') {
-  State.createEvent = ErrorBoundary.wrap(State.createEvent, 'State.createEvent');
-  State.addGuest = ErrorBoundary.wrap(State.addGuest, 'State.addGuest');
-  State.deleteEvent = ErrorBoundary.wrap(State.deleteEvent, 'State.deleteEvent');
+  // Verifica cada função antes de fazer wrap
+  if (State.addEvent && typeof State.addEvent === 'function') {
+    State.addEvent = ErrorBoundary.wrap(State.addEvent, 'State.addEvent');
+  }
+  
+  if (State.addGuest && typeof State.addGuest === 'function') {
+    State.addGuest = ErrorBoundary.wrap(State.addGuest, 'State.addGuest');
+  }
+  
+  if (State.removeEvent && typeof State.removeEvent === 'function') {
+    State.removeEvent = ErrorBoundary.wrap(State.removeEvent, 'State.removeEvent');
+  }
+  
+  console.log('✅ State functions protected');
 }
 
 window.ErrorBoundary = ErrorBoundary;
-console.log('🛡️ Error Boundary v3.1.0 ativo');
+console.log('🛡️ Error Boundary v3.1.1 ativo');
