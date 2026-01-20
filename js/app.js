@@ -1,6 +1,6 @@
 /**
  * APP.JS v3.1.1
- * ✅ CORRIGIDO: Não inicia até auth estar pronto
+ * ✅ CORRIGIDO: Storage não precisa de init()
  */
 
 const App = {
@@ -9,8 +9,7 @@ const App = {
     
     try {
       this.loadConfig();
-      this.initStorage();
-      await this.loadData();
+      await this.loadData();  // ✅ loadData já carrega do Storage
       this.initUI();
       this.initFeatures();
       this.enableAutoSave();
@@ -33,12 +32,7 @@ const App = {
     }
   },
   
-  initStorage() {
-    if (typeof Storage !== 'undefined') {
-      Storage.init();
-      console.log('💾 Storage inicializado');
-    }
-  },
+  // ✅ REMOVIDO: initStorage() - não é necessário!
   
   async loadData() {
     if (typeof State === 'undefined') {
