@@ -1,360 +1,383 @@
 /**
- * SISTEMA DE LOGIN POR EMAIL
- * v3.1 - Planilha como banco de dados
+ * SISTEMA DE AUTENTICAÇÃO v3.1.0
+ * Gerencia login/logout via Google
+ * ✅ CORRIGIDO: try-catch em autoLogin
  */
 
 const AuthSystem = {
+  // ========================================
+  // ESTADO
+  // ========================================
+  
+  currentUser: null,
+  isAuthenticated: false,
+  
+  // ========================================
+  // INICIALIZAÇÃO
+  // ========================================
+  
   /**
    * Inicializa sistema de autenticação
    */
   init() {
-    // Verifica se já tem email salvo
-    const savedEmail = this.getSavedEmail();
+    console.log('🔐 Inicializando autenticação...');
     
-    if (savedEmail) {
-      // Tem email salvo - tenta logar automaticamente
-      this.autoLogin(savedEmail);
-    } else {
-      // Não tem - mostra modal de login
-      this.showLoginModal();
+    try {
+      this.loadSavedUser();
+      this.attachLoginListeners();
+      
+      if (this.currentUser) {
+        this.autoLogin();
+      } else {
+        this.showLoginScreen();
+      }
+    } catch (error) {
+      console.error('❌ Erro ao inicializar autenticação:', error);
+      this.showLoginScreen();
     }
   },
   
   /**
-   * Mostra modal de login
+   * Carrega usuário salvo
    */
-  showLoginModal() {
-    const modal = document.createElement('div');
-    modal.id = 'login-modal';
-    modal.className = 'modal';
-    modal.style.display = 'flex';
-    modal.style.zIndex = '10000';
-    
-    modal.innerHTML = `
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title">📋 SISTEMA DE PRESENÇA</h2>
-        </div>
-        
-        <div style="padding: var(--space-4); line-height: 1.8;">
-          <p style="margin-bottom: var(--space-4); text-align: center;">
-            Digite seu email para acessar seus eventos
-          </p>
-          
-          <div class="form-group">
-            <label class="label">EMAIL</label>
-            <input 
-              type="email" 
-              class="input" 
-              id="login-email" 
-              placeholder="seu@email.com"
-              style="font-size: 16px;"
-            >
-          </div>
-          
-          <div style="background: #f0f9ff; border: 2px solid #0284c7; padding: var(--space-3); border-radius: 4px; margin-top: var(--space-3);">
-            <p style="margin: 0; font-size: 14px; color: #0c4a6e;">
-              <strong>💡 Primeira vez?</strong><br>
-              Criaremos sua planilha automaticamente no Google Drive!
-            </p>
-          </div>
-          
-          <div id="login-status" style="margin-top: var(--space-3); padding: var(--space-3); border-radius: 4px; display: none;">
-            <p id="login-status-text" style="margin: 0;"></p>
-          </div>
-        </div>
-        
-        <div class="modal-actions">
-          <button class="btn btn-success" onclick="AuthSystem.handleLogin()" style="grid-column: 1 / -1;">
-            ACESSAR →
-          </button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Foco no input
-    setTimeout(() => {
-      document.getElementById('login-email').focus();
-    }, 100);
-    
-    // Enter pra logar
-    document.getElementById('login-email').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        this.handleLogin();
+  loadSavedUser() {
+    try {
+      const saved = localStorage.getItem('auth_user');
+      if (saved) {
+        this.currentUser = JSON.parse(saved);
+        console.log('👤 Usuário salvo encontrado:', this.currentUser.email);
       }
-    });
+    } catch (error) {
+      console.warn('⚠️ Erro ao carregar usuário salvo:', error);
+      localStorage.removeItem('auth_user');
+    }
   },
   
+  // ========================================
+  // LOGIN
+  // ========================================
+  
   /**
-   * Processa login
+   * Auto-login com usuário salvo
+   * ✅ CORRIGIDO: adicionado try-catch
    */
-  async handleLogin() {
-    const email = document.getElementById('login-email').value.trim();
-    const statusDiv = document.getElementById('login-status');
-    const statusText = document.getElementById('login-status-text');
-    
-    // Validação
-    if (!email) {
-      alert('Digite seu email');
+  async autoLogin() {
+    if (!this.currentUser || !this.currentUser.email) {
+      this.showLoginScreen();
       return;
     }
     
-    if (!email.includes('@')) {
-      alert('Digite um email válido');
-      return;
-    }
-    
-    // Mostra status
-    statusDiv.style.display = 'block';
-    statusDiv.style.background = '#fffbeb';
-    statusDiv.style.border = '2px solid #f59e0b';
-    statusText.innerHTML = '⏳ Verificando...';
-    
     try {
-      // Busca ou cria planilha
-      const result = await API.getOrCreateSpreadsheet(email);
+      console.log('🔄 Tentando auto-login...');
       
-      if (!result.success) {
-        throw new Error(result.error || 'Erro ao acessar planilha');
-      }
+      // Mostra loading
+      this.showLoading('Conectando...');
       
-      // Salva dados
-      this.saveSession(email, result.spreadsheetId);
+      // Valida com API
+      const response = await API.validateUser(this.currentUser.email);
       
-      // Feedback
-      if (result.isNew) {
-        statusDiv.style.background = '#d1fae5';
-        statusDiv.style.border = '2px solid #10b981';
-        statusText.innerHTML = `
-          ✅ <strong>Planilha criada!</strong><br>
-          Você pode acessá-la no Google Drive:<br>
-          <a href="${result.spreadsheetUrl}" target="_blank" style="color: #059669;">
-            ${result.spreadsheetUrl}
-          </a>
-        `;
+      if (response.success) {
+        this.isAuthenticated = true;
+        this.hideLoginScreen();
+        this.showMainApp();
+        
+        console.log('✅ Auto-login bem-sucedido');
       } else {
-        statusDiv.style.background = '#d1fae5';
-        statusDiv.style.border = '2px solid #10b981';
-        statusText.innerHTML = '✅ <strong>Bem-vindo de volta!</strong><br>Carregando seus eventos...';
+        throw new Error(response.error || 'Falha na validação');
       }
       
-      // Aguarda 2 segundos e carrega sistema
-      setTimeout(() => {
-        this.closeLoginModal();
-        this.loadSystem();
-      }, 2000);
-      
     } catch (error) {
-      console.error('Erro no login:', error);
-      statusDiv.style.background = '#fee2e2';
-      statusDiv.style.border = '2px solid #ef4444';
-      statusText.innerHTML = `
-        ❌ <strong>Erro ao acessar sistema</strong><br>
-        ${error.message}<br><br>
-        Tente novamente ou verifique sua conexão.
-      `;
-    }
-  },
-  
-  /**
-   * Login automático
-   */
-  async autoLogin(email) {
-    console.log('🔐 Auto-login:', email);
-    
-    try {
-      // Busca planilha
-      const result = await API.getOrCreateSpreadsheet(email);
+      console.error('❌ Erro no auto-login:', error);
       
-      if (result.success) {
-        this.saveSession(email, result.spreadsheetId);
-        this.loadSystem();
+      // Limpa dados corrompidos
+      this.logout(false);
+      
+      // Mostra tela de login
+      this.showLoginScreen();
+      
+      // Notifica usuário
+      if (typeof UICore !== 'undefined') {
+        UICore.showError('Sessão expirada. Faça login novamente.');
       } else {
-        // Falhou - mostra modal
-        this.showLoginModal();
+        alert('Sessão expirada. Faça login novamente.');
       }
-      
-    } catch (error) {
-      console.error('Erro no auto-login:', error);
-      this.showLoginModal();
     }
   },
   
   /**
-   * Carrega sistema com dados da planilha
+   * Login manual
    */
-  async loadSystem() {
-    console.log('📊 Carregando sistema...');
+  async login(email) {
+    if (!email || !this.validateEmail(email)) {
+      this.showError('Email inválido!');
+      return false;
+    }
     
     try {
-      // Carrega eventos da planilha
-      const result = await API.getEvents();
+      this.showLoading('Autenticando...');
       
-      if (result.success && result.events) {
-        // Limpa eventos locais
-        State.events = [];
+      const response = await API.validateUser(email);
+      
+      if (response.success) {
+        this.currentUser = {
+          email: email,
+          name: response.data?.name || email.split('@')[0],
+          loginAt: new Date().toISOString()
+        };
         
-        // Adiciona eventos da planilha
-        result.events.forEach(event => {
-          State.events.push({
-            id: event.id,
-            name: event.name,
-            guests: [], // Será carregado depois
-            date: '',
-            createdAt: new Date()
-          });
-        });
+        this.isAuthenticated = true;
         
-        // Salva estado
-        Storage.save();
+        // Salva no localStorage
+        localStorage.setItem('auth_user', JSON.stringify(this.currentUser));
         
-        // Renderiza UI
-        if (typeof UI !== 'undefined' && UI.init) {
-          UI.init();
-        }
+        this.hideLoginScreen();
+        this.showMainApp();
         
-        // Carrega convidados do primeiro evento
-        if (State.events.length > 0) {
-          await this.loadEventGuests(State.events[0].id);
-        }
+        console.log('✅ Login bem-sucedido:', email);
+        return true;
         
-        console.log('✅ Sistema carregado!');
+      } else {
+        throw new Error(response.error || 'Email não autorizado');
       }
       
     } catch (error) {
-      console.error('Erro ao carregar sistema:', error);
-      alert('Erro ao carregar eventos. Tente recarregar a página.');
+      console.error('❌ Erro no login:', error);
+      this.showError(error.message);
+      return false;
     }
   },
   
-  /**
-   * Carrega convidados de um evento
-   */
-  async loadEventGuests(eventId) {
-    try {
-      const result = await API.getGuests(eventId);
-      
-      if (result.success && result.guests) {
-        const event = State.events.find(e => e.id === eventId);
-        if (event) {
-          event.guests = result.guests.map(g => ({
-            id: g.id,
-            name: g.name,
-            phone: g.phone,
-            email: g.email,
-            status: g.status,
-            notes: g.notes
-          }));
-          
-          Storage.save();
-          
-          // Atualiza UI
-          if (typeof UI !== 'undefined' && UI.renderEvent) {
-            UI.renderEvent(eventId);
-          }
-        }
-      }
-      
-    } catch (error) {
-      console.error('Erro ao carregar convidados:', error);
-    }
-  },
-  
-  /**
-   * Salva sessão
-   */
-  saveSession(email, spreadsheetId) {
-    localStorage.setItem('userEmail', email);
-    localStorage.setItem('spreadsheetId', spreadsheetId);
-    
-    // Atualiza config global
-    if (typeof setSpreadsheetId === 'function') {
-      setSpreadsheetId(spreadsheetId);
-    }
-    
-    console.log('✅ Sessão salva:', email);
-  },
-  
-  /**
-   * Obtém email salvo
-   */
-  getSavedEmail() {
-    return localStorage.getItem('userEmail');
-  },
+  // ========================================
+  // LOGOUT
+  // ========================================
   
   /**
    * Logout
    */
-  logout() {
-    if (confirm('Deseja sair? Seus dados estão salvos na planilha.')) {
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('spreadsheetId');
-      location.reload();
+  logout(showMessage = true) {
+    try {
+      this.currentUser = null;
+      this.isAuthenticated = false;
+      
+      localStorage.removeItem('auth_user');
+      
+      this.showLoginScreen();
+      this.hideMainApp();
+      
+      if (showMessage) {
+        if (typeof UICore !== 'undefined') {
+          UICore.showNotification('Logout realizado', 'success');
+        }
+      }
+      
+      console.log('👋 Logout realizado');
+      
+    } catch (error) {
+      console.error('❌ Erro no logout:', error);
     }
   },
   
   /**
-   * Trocar de conta
+   * Troca de conta
    */
-  switchAccount() {
-    if (confirm('Deseja trocar de conta?')) {
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('spreadsheetId');
-      location.reload();
+  async switchAccount() {
+    const confirmed = confirm('Deseja trocar de conta?\n\nVocê será desconectado e precisará fazer login novamente.');
+    
+    if (confirmed) {
+      this.logout(false);
+    }
+  },
+  
+  // ========================================
+  // UI
+  // ========================================
+  
+  /**
+   * Mostra tela de login
+   */
+  showLoginScreen() {
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) {
+      loginScreen.classList.add('active');
     }
   },
   
   /**
-   * Fecha modal de login
+   * Esconde tela de login
    */
-  closeLoginModal() {
-    const modal = document.getElementById('login-modal');
-    if (modal) {
-      modal.remove();
+  hideLoginScreen() {
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) {
+      loginScreen.classList.remove('active');
     }
   },
   
   /**
-   * Mostra email atual no header
+   * Mostra app principal
    */
-  showCurrentUser() {
-    const email = this.getSavedEmail();
-    if (!email) return;
+  showMainApp() {
+    const mainApp = document.getElementById('main-app');
+    if (mainApp) {
+      mainApp.style.display = 'block';
+    }
     
-    const header = document.querySelector('.header');
-    if (!header) return;
+    // Atualiza info do usuário
+    this.updateUserInfo();
     
-    const userInfo = document.createElement('div');
-    userInfo.style.cssText = `
-      position: absolute;
-      top: 10px;
-      right: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      color: var(--gray-600);
-    `;
+    // Inicializa app
+    if (typeof App !== 'undefined' && App.init) {
+      App.init();
+    }
+  },
+  
+  /**
+   * Esconde app principal
+   */
+  hideMainApp() {
+    const mainApp = document.getElementById('main-app');
+    if (mainApp) {
+      mainApp.style.display = 'none';
+    }
+  },
+  
+  /**
+   * Atualiza informações do usuário na UI
+   */
+  updateUserInfo() {
+    if (!this.currentUser) return;
     
-    userInfo.innerHTML = `
-      <span>👤 ${email}</span>
-      <button 
-        class="btn" 
-        onclick="AuthSystem.switchAccount()"
-        style="padding: 4px 12px; font-size: 12px;"
-      >
-        Trocar
-      </button>
-    `;
+    const userNameEl = document.getElementById('user-name');
+    const userEmailEl = document.getElementById('user-email');
     
-    header.style.position = 'relative';
-    header.appendChild(userInfo);
+    if (userNameEl) {
+      userNameEl.textContent = this.currentUser.name || 'Usuário';
+    }
+    
+    if (userEmailEl) {
+      userEmailEl.textContent = this.currentUser.email;
+    }
+  },
+  
+  /**
+   * Mostra loading
+   */
+  showLoading(message = 'Carregando...') {
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.style.opacity = '0.5';
+      loginForm.style.pointerEvents = 'none';
+    }
+    
+    const statusEl = document.getElementById('login-status');
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.style.color = 'var(--accent-primary)';
+    }
+  },
+  
+  /**
+   * Mostra erro
+   */
+  showError(message) {
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+      loginForm.style.opacity = '1';
+      loginForm.style.pointerEvents = 'auto';
+    }
+    
+    const statusEl = document.getElementById('login-status');
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.style.color = 'var(--accent-danger)';
+    }
+    
+    // Limpa depois de 5 segundos
+    setTimeout(() => {
+      if (statusEl) statusEl.textContent = '';
+    }, 5000);
+  },
+  
+  // ========================================
+  // EVENT LISTENERS
+  // ========================================
+  
+  /**
+   * Anexa listeners de login
+   */
+  attachLoginListeners() {
+    // Botão de login
+    const loginBtn = document.getElementById('btn-login');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', () => this.handleLoginClick());
+    }
+    
+    // Enter no input
+    const emailInput = document.getElementById('email-input');
+    if (emailInput) {
+      emailInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          this.handleLoginClick();
+        }
+      });
+    }
+    
+    // Botão de logout (se existir)
+    const logoutBtn = document.getElementById('btn-logout');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => this.logout());
+    }
+  },
+  
+  /**
+   * Handler do clique no login
+   */
+  async handleLoginClick() {
+    const emailInput = document.getElementById('email-input');
+    if (!emailInput) return;
+    
+    const email = emailInput.value.trim();
+    await this.login(email);
+  },
+  
+  // ========================================
+  // VALIDAÇÃO
+  // ========================================
+  
+  /**
+   * Valida email
+   */
+  validateEmail(email) {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  },
+  
+  // ========================================
+  // GETTERS
+  // ========================================
+  
+  /**
+   * Retorna se está autenticado
+   */
+  get authenticated() {
+    return this.isAuthenticated && this.currentUser !== null;
+  },
+  
+  /**
+   * Retorna email do usuário atual
+   */
+  get userEmail() {
+    return this.currentUser?.email || null;
+  },
+  
+  /**
+   * Retorna nome do usuário atual
+   */
+  get userName() {
+    return this.currentUser?.name || null;
   }
 };
 
-// Exporta
+// Exporta globalmente
 window.AuthSystem = AuthSystem;
 
-console.log('🔐 Auth System v3.1 carregado');
+console.log('🔐 Auth System v3.1.0 carregado');
