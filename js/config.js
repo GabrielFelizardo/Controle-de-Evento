@@ -5,7 +5,7 @@
 
 const API_CONFIG = {
   // ✅ URL DO APPS SCRIPT CONFIGURADA:
-  API_URL: localStorage.getItem('apiUrl') || 'https://script.google.com/macros/s/AKfycbyVVle9p5SFCsbBrQF95JgL14WE5Ecguo9Po6E3gq17yVaHzZ-Vl8J_TX3SHOHdaDZc/exec',
+  API_URL: localStorage.getItem('apiUrl') || 'https://script.google.com/macros/s/AKfycbxsGjeJ_KnQIFlwKpZiCfA4YYGYucBcCbJWyyt8dBX-40YNOeK1O04oxeyDLwFZrwH4ig/exec',
   
   // ID da planilha do cliente (será preenchido automaticamente)
   SPREADSHEET_ID: localStorage.getItem('spreadsheetId') || null,
