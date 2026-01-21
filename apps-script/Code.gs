@@ -2,16 +2,13 @@ function autorizarPermissoes() {
   try {
     Logger.log('🔍 Testando acesso ao Drive...');
     
-    // Testa acesso ao Drive
     const folders = DriveApp.getFoldersByName('teste');
     Logger.log('✅ Drive OK');
     
-    // Testa criação de planilha
     Logger.log('📊 Testando criação de planilha...');
     const ss = SpreadsheetApp.create('Teste Autorização - Pode Deletar');
     Logger.log('✅ Planilha criada: ' + ss.getId());
     
-    // Deleta a planilha teste
     Logger.log('🗑️ Deletando planilha teste...');
     DriveApp.getFileById(ss.getId()).setTrashed(true);
     Logger.log('✅ Planilha teste deletada');
@@ -19,21 +16,14 @@ function autorizarPermissoes() {
     Logger.log('');
     Logger.log('🎉 SUCESSO!');
     Logger.log('✅ Todas as permissões foram autorizadas!');
-    Logger.log('✅ Agora você pode usar o sistema normalmente.');
     
     return {
       success: true,
-      message: '✅ Autorização concluída! Pode usar o sistema.'
+      message: '✅ Autorização concluída!'
     };
     
   } catch (error) {
     Logger.log('❌ ERRO: ' + error.toString());
-    Logger.log('');
-    Logger.log('Se o erro for de permissão:');
-    Logger.log('1. Verifique se o appsscript.json tem as permissões necessárias');
-    Logger.log('2. Tente executar a função novamente');
-    Logger.log('3. Autorize quando o Google pedir');
-    
     return {
       success: false,
       error: error.toString()
@@ -47,16 +37,13 @@ function autorizarPermissoes() {
 
 const CONFIG = {
   FOLDER_NAME: 'Sistema Presença - Dados',
-  VERSION: '3.1'
+  VERSION: '3.1.3'
 };
 
 // ========================================
-// BUSCAR OU CRIAR PLANILHA POR EMAIL
+// ENDPOINT PRINCIPAL
 // ========================================
 
-/**
- * Endpoint principal - recebe todas as requisições
- */
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
@@ -91,12 +78,6 @@ function doPost(e) {
       case 'getGuests':
         result = getGuests(data);
         break;
-      case 'createEventForm':
-        result = createEventForm(data);
-        break;
-      case 'syncFormResponses':
-        result = syncFormResponses(data);
-        break;
       default:
         result = errorResponse('Ação inválida: ' + data.action);
     }
@@ -121,9 +102,6 @@ function doGet(e) {
 // BUSCAR/CRIAR PLANILHA POR EMAIL
 // ========================================
 
-/**
- * Busca planilha existente ou cria nova
- */
 function getOrCreateSpreadsheet(data) {
   try {
     const { email } = data;
@@ -132,11 +110,9 @@ function getOrCreateSpreadsheet(data) {
       return errorResponse('Email é obrigatório');
     }
     
-    // Busca planilha existente
     const existing = findSpreadsheetByEmail(email);
     
     if (existing) {
-      // Planilha já existe
       return successResponse({
         spreadsheetId: existing.getId(),
         spreadsheetUrl: existing.getUrl(),
@@ -146,7 +122,6 @@ function getOrCreateSpreadsheet(data) {
       });
     }
     
-    // Não existe - criar nova
     const newSpreadsheet = createSpreadsheetForEmail(email);
     
     return successResponse({
@@ -162,9 +137,6 @@ function getOrCreateSpreadsheet(data) {
   }
 }
 
-/**
- * Busca planilha existente por email
- */
 function findSpreadsheetByEmail(email) {
   try {
     const fileName = `Sistema Presença - ${email}`;
@@ -183,42 +155,31 @@ function findSpreadsheetByEmail(email) {
   }
 }
 
-/**
- * Cria nova planilha para o email
- */
 function createSpreadsheetForEmail(email) {
   const fileName = `Sistema Presença - ${email}`;
-  
-  // Cria planilha
   const ss = SpreadsheetApp.create(fileName);
   
-  // Cria pasta se não existir
   const folder = getOrCreateFolder();
-  
-  // Move pra pasta
   const file = DriveApp.getFileById(ss.getId());
   file.moveTo(folder);
   
-  // Compartilha com usuário
   try {
     ss.addEditor(email);
   } catch (e) {
     Logger.log('Aviso: Não foi possível compartilhar com ' + email);
   }
   
-  // Configura primeira aba
   const firstSheet = ss.getSheets()[0];
   firstSheet.setName('📋 Instruções');
   
-  // Adiciona instruções
-  firstSheet.getRange('A1').setValue('SISTEMA DE CONTROLE DE PRESENÇA');
+  firstSheet.getRange('A1').setValue('SISTEMA DE CONTROLE DE PRESENÇA v3.1.3');
   firstSheet.getRange('A1').setFontSize(16).setFontWeight('bold');
   
   firstSheet.getRange('A3').setValue('Como usar:');
-  firstSheet.getRange('A4').setValue('1. Cada aba desta planilha = 1 evento');
+  firstSheet.getRange('A4').setValue('1. Cada aba = 1 evento');
   firstSheet.getRange('A5').setValue('2. Crie eventos no sistema web');
-  firstSheet.getRange('A6').setValue('3. Abas serão criadas automaticamente aqui');
-  firstSheet.getRange('A7').setValue('4. Você pode abrir e ver seus dados a qualquer momento');
+  firstSheet.getRange('A6').setValue('3. Abas são criadas automaticamente');
+  firstSheet.getRange('A7').setValue('4. Convidados aparecem como linhas');
   
   firstSheet.getRange('A9').setValue('Email:').setFontWeight('bold');
   firstSheet.getRange('B9').setValue(email);
@@ -226,16 +187,12 @@ function createSpreadsheetForEmail(email) {
   firstSheet.getRange('A10').setValue('Criado em:').setFontWeight('bold');
   firstSheet.getRange('B10').setValue(new Date());
   
-  // Formata
   firstSheet.setColumnWidth(1, 150);
   firstSheet.setColumnWidth(2, 300);
   
   return ss;
 }
 
-/**
- * Busca ou cria pasta
- */
 function getOrCreateFolder() {
   const folders = DriveApp.getFoldersByName(CONFIG.FOLDER_NAME);
   
@@ -251,11 +208,11 @@ function getOrCreateFolder() {
 // ========================================
 
 /**
- * Cria novo evento (nova aba)
+ * ✅ CORRIGIDO: Agora aceita colunas personalizadas!
  */
 function createEvent(data) {
   try {
-    const { spreadsheetId, name, date, description } = data;
+    const { spreadsheetId, name, date, description, columns } = data;
     
     if (!spreadsheetId || !name) {
       return errorResponse('spreadsheetId e name são obrigatórios');
@@ -263,11 +220,9 @@ function createEvent(data) {
     
     const ss = SpreadsheetApp.openById(spreadsheetId);
     
-    // Verifica se já existe aba com esse nome
     let sheet = ss.getSheetByName(name);
     
     if (sheet) {
-      // Aba já existe, retorna ela
       return successResponse({
         eventId: name,
         name: name,
@@ -278,39 +233,47 @@ function createEvent(data) {
       });
     }
     
-    // Cria nova aba
     sheet = ss.insertSheet(name);
     
-    // Headers
-    sheet.getRange('A1:F1').setValues([[
-      'Nome',
-      'Telefone',
-      'Email',
-      'Status',
-      'Adicionado Em',
-      'Observações'
-    ]]);
+    // ✅ NOVO: Usa colunas personalizadas se fornecidas
+    let headerColumns;
+    if (columns && Array.isArray(columns) && columns.length > 0) {
+      // Colunas personalizadas + Status + Data
+      headerColumns = [...columns, 'Status', 'Adicionado Em'];
+    } else {
+      // Colunas padrão
+      headerColumns = ['Nome', 'Telefone', 'Email', 'Status', 'Adicionado Em', 'Observações'];
+    }
+    
+    // Cria header
+    const headerRange = sheet.getRange(1, 1, 1, headerColumns.length);
+    headerRange.setValues([headerColumns]);
     
     // Formata header
-    sheet.getRange('A1:F1')
+    headerRange
       .setBackground('#000000')
       .setFontColor('#FFFFFF')
       .setFontWeight('bold')
       .setHorizontalAlignment('center');
     
     // Auto-resize
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= headerColumns.length; i++) {
       sheet.autoResizeColumn(i);
     }
     
-    // Congela header
     sheet.setFrozenRows(1);
     
-    // Adiciona nota na aba de instruções
+    // ✅ NOVO: Salva metadados das colunas
+    const properties = PropertiesService.getScriptProperties();
+    properties.setProperty(
+      `columns_${spreadsheetId}_${name}`,
+      JSON.stringify(columns || [])
+    );
+    
     const infoSheet = ss.getSheetByName('📋 Instruções');
     if (infoSheet) {
       const lastRow = infoSheet.getLastRow();
-      infoSheet.getRange(lastRow + 1, 1).setValue(`✓ Evento criado: ${name}`);
+      infoSheet.getRange(lastRow + 1, 1).setValue(`✓ Evento: ${name}`);
       infoSheet.getRange(lastRow + 1, 2).setValue(new Date());
     }
     
@@ -320,6 +283,7 @@ function createEvent(data) {
       date: date || '',
       description: description || '',
       sheetName: name,
+      columns: headerColumns,
       createdAt: new Date().toISOString()
     });
     
@@ -328,9 +292,6 @@ function createEvent(data) {
   }
 }
 
-/**
- * Lista eventos (abas da planilha)
- */
 function getEvents(data) {
   try {
     const { spreadsheetId } = data;
@@ -347,16 +308,21 @@ function getEvents(data) {
     sheets.forEach(sheet => {
       const name = sheet.getName();
       
-      // Pula aba de instruções
       if (name === '📋 Instruções') {
         return;
       }
+      
+      // ✅ NOVO: Lê colunas do evento
+      const properties = PropertiesService.getScriptProperties();
+      const columnsJson = properties.getProperty(`columns_${spreadsheetId}_${name}`);
+      const columns = columnsJson ? JSON.parse(columnsJson) : [];
       
       events.push({
         id: name,
         name: name,
         sheetName: name,
-        guestCount: Math.max(0, sheet.getLastRow() - 1) // -1 pra não contar header
+        columns: columns,
+        guestCount: Math.max(0, sheet.getLastRow() - 1)
       });
     });
     
@@ -368,7 +334,7 @@ function getEvents(data) {
 }
 
 /**
- * Atualiza evento (renomeia aba)
+ * ✅ NOVO: Atualiza evento (renomeia aba)
  */
 function updateEvent(data) {
   try {
@@ -385,13 +351,24 @@ function updateEvent(data) {
       return errorResponse('Evento não encontrado');
     }
     
-    // Renomeia aba
+    // ✅ NOVO: Transfere metadados de colunas
+    const properties = PropertiesService.getScriptProperties();
+    const oldKey = `columns_${spreadsheetId}_${eventId}`;
+    const newKey = `columns_${spreadsheetId}_${newName}`;
+    
+    const columnsJson = properties.getProperty(oldKey);
+    if (columnsJson) {
+      properties.setProperty(newKey, columnsJson);
+      properties.deleteProperty(oldKey);
+    }
+    
     sheet.setName(newName);
     
     return successResponse({
       eventId: newName,
       name: newName,
-      oldName: eventId
+      oldName: eventId,
+      updated: true
     });
     
   } catch (error) {
@@ -399,9 +376,6 @@ function updateEvent(data) {
   }
 }
 
-/**
- * Deleta evento (deleta aba)
- */
 function deleteEvent(data) {
   try {
     const { spreadsheetId, eventId } = data;
@@ -417,7 +391,10 @@ function deleteEvent(data) {
       return errorResponse('Evento não encontrado');
     }
     
-    // Deleta aba
+    // ✅ NOVO: Remove metadados
+    const properties = PropertiesService.getScriptProperties();
+    properties.deleteProperty(`columns_${spreadsheetId}_${eventId}`);
+    
     ss.deleteSheet(sheet);
     
     return successResponse({ deleted: true, eventId: eventId });
@@ -432,13 +409,13 @@ function deleteEvent(data) {
 // ========================================
 
 /**
- * Adiciona convidado (adiciona linha)
+ * ✅ CORRIGIDO: Usa colunas dinâmicas!
  */
 function addGuest(data) {
   try {
     const { spreadsheetId, eventId, guest } = data;
     
-    if (!spreadsheetId || !eventId || !guest || !guest.name) {
+    if (!spreadsheetId || !eventId || !guest) {
       return errorResponse('Dados incompletos');
     }
     
@@ -446,34 +423,53 @@ function addGuest(data) {
     const sheet = ss.getSheetByName(eventId);
     
     if (!sheet) {
-      return errorResponse('Evento não encontrado');
+      return errorResponse('Evento não encontrado: ' + eventId);
     }
     
-    // Adiciona linha
-    sheet.appendRow([
-      guest.name,
-      guest.phone || '',
-      guest.email || '',
-      guest.status || 'pending',
-      new Date(),
-      guest.notes || ''
-    ]);
+    // ✅ NOVO: Lê colunas salvas do evento
+    const properties = PropertiesService.getScriptProperties();
+    const columnsJson = properties.getProperty(`columns_${spreadsheetId}_${eventId}`);
+    
+    let columns = [];
+    if (columnsJson) {
+      columns = JSON.parse(columnsJson);
+    } else {
+      // Fallback: lê header da planilha
+      const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+      const headerValues = headerRange.getValues()[0];
+      columns = headerValues.filter(h => h && h !== 'Status' && h !== 'Adicionado Em');
+    }
+    
+    // ✅ NOVO: Monta linha com base nas colunas do evento
+    const row = [];
+    
+    // Adiciona valores das colunas personalizadas
+    columns.forEach(col => {
+      row.push(guest[col] || '');
+    });
+    
+    // Adiciona status e data
+    row.push(guest.status || 'pending');
+    row.push(new Date());
+    
+    Logger.log('Adicionando convidado - Colunas: ' + columns.join(', '));
+    Logger.log('Valores: ' + row.join(', '));
+    
+    sheet.appendRow(row);
     
     return successResponse({
-      guestId: sheet.getLastRow(), // Usa número da linha como ID
+      guestId: sheet.getLastRow(),
       eventId: eventId,
-      name: guest.name,
       addedAt: new Date().toISOString()
     });
     
   } catch (error) {
+    Logger.log('ERRO addGuest: ' + error.message);
+    Logger.log('Stack: ' + error.stack);
     return errorResponse('Erro ao adicionar convidado: ' + error.message);
   }
 }
 
-/**
- * Lista convidados de um evento
- */
 function getGuests(data) {
   try {
     const { spreadsheetId, eventId } = data;
@@ -492,19 +488,23 @@ function getGuests(data) {
     const dataRange = sheet.getDataRange();
     const values = dataRange.getValues();
     
+    if (values.length < 2) {
+      return successResponse({ guests: [] });
+    }
+    
+    // Lê colunas do header
+    const headers = values[0];
+    
     const guests = [];
     
-    // Pula header (linha 1)
     for (let i = 1; i < values.length; i++) {
-      guests.push({
-        id: i + 1, // Número da linha
-        name: values[i][0],
-        phone: values[i][1],
-        email: values[i][2],
-        status: values[i][3],
-        addedAt: values[i][4],
-        notes: values[i][5]
+      const guest = { id: i + 1 };
+      
+      headers.forEach((header, idx) => {
+        guest[header] = values[i][idx];
       });
+      
+      guests.push(guest);
     }
     
     return successResponse({ guests: guests });
@@ -515,7 +515,7 @@ function getGuests(data) {
 }
 
 /**
- * Atualiza convidado
+ * ✅ CORRIGIDO: Atualiza baseado em colunas dinâmicas
  */
 function updateGuest(data) {
   try {
@@ -532,14 +532,19 @@ function updateGuest(data) {
       return errorResponse('Evento não encontrado');
     }
     
-    const row = guestId; // guestId É o número da linha
+    const row = guestId;
     
-    // Atualiza células
-    if (updates.name !== undefined) sheet.getRange(row, 1).setValue(updates.name);
-    if (updates.phone !== undefined) sheet.getRange(row, 2).setValue(updates.phone);
-    if (updates.email !== undefined) sheet.getRange(row, 3).setValue(updates.email);
-    if (updates.status !== undefined) sheet.getRange(row, 4).setValue(updates.status);
-    if (updates.notes !== undefined) sheet.getRange(row, 6).setValue(updates.notes);
+    // Lê header para saber qual coluna é qual
+    const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    
+    // Atualiza cada campo
+    Object.keys(updates).forEach(fieldName => {
+      const colIndex = headers.indexOf(fieldName);
+      if (colIndex >= 0) {
+        sheet.getRange(row, colIndex + 1).setValue(updates[fieldName]);
+      }
+    });
     
     return successResponse({ updated: true });
     
@@ -548,9 +553,6 @@ function updateGuest(data) {
   }
 }
 
-/**
- * Deleta convidado
- */
 function deleteGuest(data) {
   try {
     const { spreadsheetId, eventId, guestId } = data;
@@ -566,120 +568,12 @@ function deleteGuest(data) {
       return errorResponse('Evento não encontrado');
     }
     
-    // Deleta linha
     sheet.deleteRow(guestId);
     
     return successResponse({ deleted: true });
     
   } catch (error) {
     return errorResponse('Erro ao deletar convidado: ' + error.message);
-  }
-}
-
-// ========================================
-// FORMULÁRIOS GOOGLE FORMS
-// ========================================
-
-/**
- * Cria Google Form para evento
- */
-function createEventForm(data) {
-  try {
-    const { spreadsheetId, eventId, eventName } = data;
-    
-    if (!spreadsheetId || !eventId) {
-      return errorResponse('Dados incompletos');
-    }
-    
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    const sheet = ss.getSheetByName(eventId);
-    
-    if (!sheet) {
-      return errorResponse('Evento não encontrado');
-    }
-    
-    // Cria formulário
-    const form = FormApp.create(`Confirmação - ${eventName || eventId}`);
-    
-    form.setTitle(`🎉 ${eventName || eventId}`);
-    form.setDescription('Confirme sua presença preenchendo o formulário abaixo:');
-    form.setCollectEmail(false);
-    form.setConfirmationMessage('✅ Presença confirmada! Obrigado!');
-    
-    // Campos
-    form.addTextItem().setTitle('Nome Completo').setRequired(true);
-    form.addTextItem().setTitle('Telefone').setHelpText('(21) 99999-9999');
-    form.addTextItem().setTitle('Email');
-    form.addMultipleChoiceItem()
-      .setTitle('Você vai comparecer?')
-      .setChoiceValues(['✅ Sim, estarei presente', '❌ Não poderei comparecer'])
-      .setRequired(true);
-    
-    // Define destino (mesma planilha, nova aba)
-    form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
-    
-    return successResponse({
-      formId: form.getId(),
-      formUrl: form.getPublishedUrl(),
-      editUrl: form.getEditUrl()
-    });
-    
-  } catch (error) {
-    return errorResponse('Erro ao criar formulário: ' + error.message);
-  }
-}
-
-/**
- * Sincroniza respostas do formulário
- */
-function syncFormResponses(data) {
-  try {
-    const { spreadsheetId, eventId, formId } = data;
-    
-    if (!spreadsheetId || !eventId || !formId) {
-      return errorResponse('Dados incompletos');
-    }
-    
-    const form = FormApp.openById(formId);
-    const responses = form.getResponses();
-    
-    const ss = SpreadsheetApp.openById(spreadsheetId);
-    const sheet = ss.getSheetByName(eventId);
-    
-    if (!sheet) {
-      return errorResponse('Evento não encontrado');
-    }
-    
-    let synced = 0;
-    
-    responses.forEach(response => {
-      const items = response.getItemResponses();
-      const responseData = {};
-      
-      items.forEach(item => {
-        responseData[item.getItem().getTitle()] = item.getResponse();
-      });
-      
-      const name = responseData['Nome Completo'];
-      const phone = responseData['Telefone'] || '';
-      const email = responseData['Email'] || '';
-      const statusText = responseData['Você vai comparecer?'];
-      const status = statusText && statusText.includes('Sim') ? 'yes' : 'no';
-      
-      if (name) {
-        // Adiciona na planilha
-        sheet.appendRow([name, phone, email, status, new Date(), 'Via formulário']);
-        synced++;
-      }
-    });
-    
-    return successResponse({
-      synced: synced,
-      total: responses.length
-    });
-    
-  } catch (error) {
-    return errorResponse('Erro ao sincronizar: ' + error.message);
   }
 }
 
@@ -710,10 +604,13 @@ function createResponse(data) {
 }
 
 function logRequest(data) {
+  Logger.log('='.repeat(50));
   Logger.log('Action: ' + data.action);
+  Logger.log('Data: ' + JSON.stringify(data));
+  Logger.log('='.repeat(50));
 }
 
 function logError(error) {
-  Logger.log('ERRO: ' + error.message);
+  Logger.log('❌ ERRO: ' + error.message);
   Logger.log('Stack: ' + error.stack);
 }
