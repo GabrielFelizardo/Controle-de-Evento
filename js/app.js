@@ -1,18 +1,23 @@
 /**
- * APP.JS v3.1.1
- * ✅ CORRIGIDO: Storage não precisa de init()
+ * APP.JS v3.1.2
+ * ✅ CORRIGIDO: Ativa SheetSync após autenticação
  */
 
 const App = {
   async init() {
-    console.log('🚀 App v3.1.1 iniciando...');
+    console.log('🚀 App v3.1.2 iniciando...');
     
     try {
       this.loadConfig();
-      await this.loadData();  // ✅ loadData já carrega do Storage
+      await this.loadData();
       this.initUI();
       this.initFeatures();
       this.enableAutoSave();
+      
+      // ✅ NOVO: Ativa sincronização se estiver autenticado
+      if (typeof AuthSystem !== 'undefined' && AuthSystem.authenticated) {
+        this.enableSheetSync();
+      }
       
       console.log('✅ App inicializado');
       
@@ -31,8 +36,6 @@ const App = {
       console.warn('⚠️ CONFIG não encontrado');
     }
   },
-  
-  // ✅ REMOVIDO: initStorage() - não é necessário!
   
   async loadData() {
     if (typeof State === 'undefined') {
@@ -55,14 +58,15 @@ const App = {
         const result = await API.listEvents(AuthSystem.spreadsheetId);
         
         if (result.success && result.data && result.data.events) {
-          // Converte eventos da API para formato local
           State.events = result.data.events.map(e => ({
             id: e.id || e.name,
             name: e.name,
             date: '',
             columns: [],
             guests: [],
-            method: null
+            method: null,
+            sheetName: e.sheetName,
+            syncedToSheet: true
           }));
           
           console.log(`📊 ${State.events.length} evento(s) da API`);
@@ -120,6 +124,64 @@ const App = {
     console.log('💾 Auto-save ativado');
   },
   
+  // ✅ NOVO: Ativa sincronização com Sheets
+  enableSheetSync() {
+    if (typeof SheetSync === 'undefined') {
+      console.warn('⚠️ SheetSync não disponível');
+      return;
+    }
+    
+    if (!AuthSystem.spreadsheetId) {
+      console.warn('⚠️ Sem spreadsheetId - sincronização desabilitada');
+      return;
+    }
+    
+    try {
+      SheetSync.enable();
+      console.log('✅ SheetSync ativado com spreadsheetId:', AuthSystem.spreadsheetId);
+      
+      // ✅ NOVO: Sincroniza eventos locais existentes
+      this.syncLocalEventsToSheet();
+      
+    } catch (error) {
+      console.error('❌ Erro ao ativar SheetSync:', error);
+    }
+  },
+  
+  // ✅ NOVO: Sincroniza eventos que existem só localmente
+  async syncLocalEventsToSheet() {
+    if (!State.events || State.events.length === 0) return;
+    
+    console.log('🔄 Verificando eventos para sincronizar...');
+    
+    for (const event of State.events) {
+      if (!event.sheetName && !event.syncedToSheet) {
+        try {
+          console.log(`📤 Criando evento "${event.name}" no Google Sheets...`);
+          
+          const result = await API.createEvent(
+            AuthSystem.spreadsheetId,
+            event.name,
+            event.date || '',
+            '',
+            ''
+          );
+          
+          if (result.success) {
+            event.sheetName = result.data.sheetName;
+            event.syncedToSheet = true;
+            console.log(`✅ Evento "${event.name}" sincronizado`);
+          }
+          
+        } catch (error) {
+          console.error(`❌ Erro ao sincronizar evento "${event.name}":`, error);
+        }
+      }
+    }
+    
+    Storage.save();
+  },
+  
   updateAutoSaveIndicator() {
     const indicator = document.getElementById('auto-save');
     if (!indicator) return;
@@ -151,4 +213,4 @@ if (document.readyState === 'loading') {
 }
 
 window.App = App;
-console.log('✅ App v3.1.1 carregado');
+console.log('✅ App v3.1.2 carregado');
