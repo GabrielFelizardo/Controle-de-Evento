@@ -1,7 +1,7 @@
 /**
- * UI-CORE.JS v3.1.0
+ * UI-CORE.JS v3.1.1
  * Sistema consolidado de Interface do Usuário
- * ✅ SEM DUPLICAÇÕES - VERSÃO ÚNICA
+ * ✅ CORRIGIDO: Adicionadas funções showLoadingOverlay e hideLoadingOverlay
  * 
  * Responsabilidades:
  * - Renderização de eventos
@@ -21,7 +21,7 @@ const UICore = {
    * Inicializa sistema de UI
    */
   init() {
-    console.log('🎨 UICore v3.1.0 inicializando...');
+    console.log('🎨 UICore v3.1.1 inicializando...');
     
     try {
       this.attachGlobalListeners();
@@ -82,11 +82,6 @@ const UICore = {
       `;
       
       this.attachEventListeners();
-      
-      // Atualiza tabs editáveis
-      if (typeof EditableTabs !== 'undefined') {
-        setTimeout(() => EditableTabs.updateAllTabs(), 100);
-      }
       
     } catch (error) {
       console.error('Erro ao renderizar:', error);
@@ -187,39 +182,38 @@ const UICore = {
    * Deleta evento
    */
   async deleteEvent(eventId) {
-  const event = State.getEventById(eventId);
-  if (!event) return;
-  
-  const confirmed = await this.showConfirm(
-    'DELETAR EVENTO',
-    `Tem certeza que deseja deletar "${event.name}"?\n\nEsta ação não pode ser desfeita.`
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    // ✅ CORRIGIDO: usa removeEvent ao invés de deleteEvent
-    const success = State.removeEvent(eventId);
+    const event = State.getEventById(eventId);
+    if (!event) return;
     
-    if (!success) {
-      throw new Error('Falha ao remover evento');
+    const confirmed = await this.showConfirm(
+      'DELETAR EVENTO',
+      `Tem certeza que deseja deletar "${event.name}"?\n\nEsta ação não pode ser desfeita.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      const success = State.removeEvent(eventId);
+      
+      if (!success) {
+        throw new Error('Falha ao remover evento');
+      }
+      
+      // Se deletou o evento atual, vai pro primeiro
+      if (State.currentEventId === eventId) {
+        State.currentEventId = State.events[0]?.id || null;
+      }
+      
+      Storage.save();
+      this.renderTabs();
+      this.render();
+      this.showNotification('Evento deletado', 'success');
+      
+    } catch (error) {
+      console.error('Erro ao deletar evento:', error);
+      this.showError('Erro ao deletar evento');
     }
-    
-    // Se deletou o evento atual, vai pro primeiro
-    if (State.currentEventId === eventId) {
-      State.currentEventId = State.events[0]?.id || null;
-    }
-    
-    Storage.save();
-    this.renderTabs();
-    this.render();
-    this.showNotification('Evento deletado', 'success');
-    
-  } catch (error) {
-    console.error('Erro ao deletar evento:', error);
-    this.showError('Erro ao deletar evento');
-  }
-},
+  },
   
   // ========================================
   // ESTATÍSTICAS
@@ -1019,7 +1013,7 @@ const UICore = {
   },
   
   // ========================================
-  // NOTIFICAÇÕES
+  // NOTIFICAÇÕES E LOADING
   // ========================================
   
   showNotification(message, type = 'info') {
@@ -1058,6 +1052,79 @@ const UICore = {
   
   showError(message) {
     this.showNotification(message, 'error');
+  },
+  
+  /**
+   * ✅ NOVO: Mostra overlay de loading
+   */
+  showLoadingOverlay(message = 'Carregando...') {
+    // Remove overlay anterior se existir
+    this.hideLoadingOverlay();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+    `;
+    
+    overlay.innerHTML = `
+      <div style="
+        background: white;
+        padding: 32px 48px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      ">
+        <div class="spinner" style="
+          width: 48px;
+          height: 48px;
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #000;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 16px;
+        "></div>
+        <div style="
+          font-size: 16px;
+          font-weight: bold;
+          color: #000;
+        ">${message}</div>
+      </div>
+    `;
+    
+    // Adiciona CSS da animação se não existir
+    if (!document.getElementById('spinner-animation')) {
+      const style = document.createElement('style');
+      style.id = 'spinner-animation';
+      style.textContent = `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(overlay);
+  },
+  
+  /**
+   * ✅ NOVO: Esconde overlay de loading
+   */
+  hideLoadingOverlay() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.remove();
+    }
   }
 };
 
@@ -1068,4 +1135,4 @@ const UI = UICore;
 window.UICore = UICore;
 window.UI = UI;
 
-console.log('✅ UICore v3.1.0 carregado');
+console.log('✅ UICore v3.1.1 carregado (com loading overlays)');
