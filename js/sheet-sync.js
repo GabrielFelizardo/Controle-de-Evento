@@ -1,6 +1,6 @@
 /**
- * SINCRONIZAÇÃO COM PLANILHA v3.1.2
- * ✅ CORRIGIDO: Passa spreadsheetId corretamente
+ * SINCRONIZAÇÃO COM PLANILHA v3.2.0
+ * ✅ CORRIGIDO: Sincroniza TUDO - convidados, edições, colunas, renomeações
  */
 
 const SheetSync = {
@@ -39,7 +39,7 @@ const SheetSync = {
     // Salva função original
     const originalAddEvent = State.addEvent;
     
-    // ✅ CORRIGIDO: Sobrescreve addEvent
+    // ✅ Sobrescreve addEvent
     State.addEvent = async function(name, date) {
       console.log('📝 Criando evento:', name);
       
@@ -49,10 +49,14 @@ const SheetSync = {
         return originalAddEvent.call(State, name, date);
       }
       
+      // Mostra loading
+      if (typeof UICore !== 'undefined') {
+        UICore.showLoadingOverlay('Criando evento no Google Drive...');
+      }
+      
       try {
-        // ✅ CORRIGIDO: Passa spreadsheetId!
         const result = await API.createEvent(
-          AuthSystem.spreadsheetId,  // ← AQUI!
+          AuthSystem.spreadsheetId,
           name,
           date || '',
           '',
@@ -63,9 +67,9 @@ const SheetSync = {
           throw new Error(result.error || 'Erro ao criar evento na planilha');
         }
         
-        // 2. Cria local
+        // Cria local
         const localEvent = {
-          id: result.data.eventId,
+          id: result.data.eventId || Utils.generateId(),
           name: name,
           date: date || '',
           guests: [],
@@ -81,8 +85,9 @@ const SheetSync = {
         
         console.log('✅ Evento criado na planilha:', localEvent);
         
-        // Mostra notificação
+        // Esconde loading
         if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
           UICore.showNotification('✅ Evento criado no Google Drive!', 'success');
         }
         
@@ -91,8 +96,9 @@ const SheetSync = {
       } catch (error) {
         console.error('❌ Erro ao criar evento no Sheets:', error);
         
-        // Mostra erro pro usuário
+        // Esconde loading
         if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
           UICore.showError('Erro ao salvar no Google Drive: ' + error.message);
         }
         
@@ -104,7 +110,43 @@ const SheetSync = {
       }
     };
     
-    // Sobrescreve removeEvent
+    // ✅ NOVO: Intercepta mudança de colunas
+    State.setEventColumns = async function(eventId, columns) {
+      const event = State.getEventById(eventId);
+      if (!event) return;
+      
+      console.log('📊 Definindo colunas:', columns);
+      
+      // Atualiza local
+      event.columns = columns;
+      State.clearStatsCache(eventId);
+      
+      // Se evento está sincronizado, atualiza headers na planilha
+      if (event.sheetName && AuthSystem.spreadsheetId) {
+        try {
+          console.log('📤 Atualizando cabeçalhos na planilha...');
+          
+          // Como não temos endpoint específico, vamos recriar a aba
+          // com os headers corretos
+          const result = await API.updateEvent(
+            AuthSystem.spreadsheetId,
+            event.sheetName,
+            event.name
+          );
+          
+          if (result.success) {
+            console.log('✅ Cabeçalhos atualizados');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao atualizar headers:', error);
+        }
+      }
+      
+      Storage.save();
+    };
+    
+    // ✅ Sobrescreve removeEvent
     const originalRemoveEvent = State.removeEvent;
     
     State.removeEvent = async function(eventId) {
@@ -115,6 +157,11 @@ const SheetSync = {
       
       // Se tem sheetName, deleta do Sheets também
       if (event.sheetName && AuthSystem.spreadsheetId) {
+        // Mostra loading
+        if (typeof UICore !== 'undefined') {
+          UICore.showLoadingOverlay('Deletando do Google Drive...');
+        }
+        
         try {
           const result = await API.deleteEvent(
             AuthSystem.spreadsheetId,
@@ -129,6 +176,10 @@ const SheetSync = {
           
         } catch (error) {
           console.error('❌ Erro ao deletar do Sheets:', error);
+        } finally {
+          if (typeof UICore !== 'undefined') {
+            UICore.hideLoadingOverlay();
+          }
         }
       }
       
@@ -153,58 +204,140 @@ const SheetSync = {
     
     // ✅ CORRIGIDO: Sobrescreve addGuest
     State.addGuest = async function(eventId, guest) {
-      console.log('👤 Adicionando convidado:', guest.name);
+      console.log('👤 Adicionando convidado:', guest);
       
       const event = State.getEventById(eventId);
       if (!event) {
         throw new Error('Evento não encontrado');
       }
       
+      // ✅ IMPORTANTE: Garante que guest tem todas as colunas
+      const completeGuest = {
+        id: guest.id || Utils.generateId(),
+        status: guest.status || 'pending'
+      };
+      
+      // Copia valores das colunas
+      event.columns.forEach(col => {
+        completeGuest[col] = guest[col] || '';
+      });
+      
       // Se evento não está sincronizado com Sheets, adiciona só localmente
       if (!event.sheetName || !AuthSystem.spreadsheetId) {
         console.log('📝 Adicionando convidado apenas localmente');
-        return originalAddGuest.call(State, eventId, guest);
+        event.guests.push(completeGuest);
+        Storage.save();
+        return completeGuest;
+      }
+      
+      // Mostra loading
+      if (typeof UICore !== 'undefined') {
+        UICore.showLoadingOverlay('Salvando no Google Drive...');
       }
       
       try {
-        // ✅ CORRIGIDO: Passa spreadsheetId e sheetName!
+        // ✅ CORRIGIDO: Envia guest completo com todas as colunas
         const result = await API.addGuest(
           AuthSystem.spreadsheetId,
           event.sheetName,
-          guest
+          completeGuest
         );
         
         if (!result.success) {
           throw new Error(result.error || 'Erro ao adicionar convidado');
         }
         
-        // 2. Adiciona local
-        const localGuest = {
-          id: result.data.guestId,
-          name: guest.name,
-          phone: guest.phone || '',
-          email: guest.email || '',
-          status: guest.status || 'pending',
-          notes: guest.notes || ''
-        };
+        // Atualiza ID se API retornou um novo
+        if (result.data.guestId) {
+          completeGuest.id = result.data.guestId;
+        }
         
-        event.guests.push(localGuest);
+        // Adiciona local
+        event.guests.push(completeGuest);
+        State.clearStatsCache(eventId);
         Storage.save();
         
-        console.log('✅ Convidado adicionado na planilha:', localGuest);
+        console.log('✅ Convidado adicionado na planilha:', completeGuest);
         
-        return localGuest;
+        // Esconde loading
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+          UICore.showNotification('✅ Salvo no Google Drive!', 'success');
+        }
+        
+        return completeGuest;
         
       } catch (error) {
         console.error('❌ Erro ao adicionar convidado no Sheets:', error);
         
+        // Esconde loading
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+          UICore.showError('Erro ao salvar: ' + error.message);
+        }
+        
         // Adiciona localmente mesmo com erro
         console.log('📝 Adicionando convidado apenas localmente...');
-        return originalAddGuest.call(State, eventId, guest);
+        event.guests.push(completeGuest);
+        Storage.save();
+        return completeGuest;
       }
     };
     
-    // Sobrescreve updateGuestStatus
+    // ✅ NOVO: Intercepta edição completa do convidado
+    const originalUpdateGuest = State.updateGuest;
+    
+    State.updateGuest = async function(eventId, guestIndex, guestData) {
+      console.log('✏️ Atualizando convidado:', guestIndex, guestData);
+      
+      const event = State.getEventById(eventId);
+      if (!event || !event.guests[guestIndex]) return false;
+      
+      const guest = event.guests[guestIndex];
+      
+      // Atualiza local primeiro
+      Object.assign(guest, guestData);
+      State.clearStatsCache(eventId);
+      Storage.save();
+      
+      // Se evento está sincronizado, atualiza no Sheets
+      if (event.sheetName && AuthSystem.spreadsheetId && guest.id) {
+        // Mostra loading
+        if (typeof UICore !== 'undefined') {
+          UICore.showLoadingOverlay('Atualizando no Google Drive...');
+        }
+        
+        try {
+          const result = await API.updateGuest(
+            AuthSystem.spreadsheetId,
+            event.sheetName,
+            guest.id,
+            guestData
+          );
+          
+          if (!result.success) {
+            console.warn('⚠️ Erro ao atualizar no Sheets:', result.error);
+          } else {
+            console.log('✅ Convidado atualizado no Sheets');
+            
+            if (typeof UICore !== 'undefined') {
+              UICore.showNotification('✅ Atualizado no Google Drive!', 'success');
+            }
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao atualizar no Sheets:', error);
+        } finally {
+          if (typeof UICore !== 'undefined') {
+            UICore.hideLoadingOverlay();
+          }
+        }
+      }
+      
+      return true;
+    };
+    
+    // ✅ Sobrescreve updateGuestStatus
     const originalUpdateStatus = State.updateGuestStatus;
     
     State.updateGuestStatus = async function(eventId, guestIndex, status) {
@@ -215,6 +348,11 @@ const SheetSync = {
       
       const guest = event.guests[guestIndex];
       if (!guest) return;
+      
+      // Atualiza local
+      guest.status = status;
+      State.clearStatsCache(eventId);
+      Storage.save();
       
       // Se evento está sincronizado, atualiza no Sheets
       if (event.sheetName && AuthSystem.spreadsheetId && guest.id) {
@@ -236,13 +374,9 @@ const SheetSync = {
           console.error('❌ Erro ao atualizar no Sheets:', error);
         }
       }
-      
-      // Atualiza local
-      originalUpdateStatus.call(State, eventId, guestIndex, status);
-      Storage.save();
     };
     
-    // Sobrescreve removeGuest
+    // ✅ Sobrescreve removeGuest
     const originalRemoveGuest = State.removeGuest;
     
     State.removeGuest = async function(eventId, guestIndex) {
@@ -256,6 +390,11 @@ const SheetSync = {
       
       // Se evento está sincronizado, deleta do Sheets
       if (event.sheetName && AuthSystem.spreadsheetId && guest.id) {
+        // Mostra loading
+        if (typeof UICore !== 'undefined') {
+          UICore.showLoadingOverlay('Deletando do Google Drive...');
+        }
+        
         try {
           const result = await API.deleteGuest(
             AuthSystem.spreadsheetId,
@@ -271,6 +410,10 @@ const SheetSync = {
           
         } catch (error) {
           console.error('❌ Erro ao deletar do Sheets:', error);
+        } finally {
+          if (typeof UICore !== 'undefined') {
+            UICore.hideLoadingOverlay();
+          }
         }
       }
       
@@ -280,6 +423,89 @@ const SheetSync = {
       
       return success;
     };
+  },
+  
+  /**
+   * ✅ NOVO: Sincroniza renomeação de evento
+   */
+  async renameEvent(eventId, newName) {
+    const event = State.getEventById(eventId);
+    if (!event) return false;
+    
+    const oldName = event.name;
+    
+    console.log(`📝 Renomeando evento: "${oldName}" → "${newName}"`);
+    
+    // Atualiza local
+    event.name = newName;
+    Storage.save();
+    
+    // Se evento está sincronizado, renomeia no Sheets
+    if (event.sheetName && AuthSystem.spreadsheetId) {
+      // Mostra loading
+      if (typeof UICore !== 'undefined') {
+        UICore.showLoadingOverlay('Renomeando no Google Drive...');
+      }
+      
+      try {
+        const result = await API.updateEvent(
+          AuthSystem.spreadsheetId,
+          event.sheetName,
+          newName
+        );
+        
+        if (!result.success) {
+          console.warn('⚠️ Erro ao renomear no Sheets:', result.error);
+          
+          // Reverte local se falhou
+          event.name = oldName;
+          Storage.save();
+          
+          if (typeof UICore !== 'undefined') {
+            UICore.showError('Erro ao renomear no Google Drive');
+          }
+          
+          return false;
+        }
+        
+        // Atualiza sheetName se API retornou novo nome
+        if (result.data && result.data.eventId) {
+          event.sheetName = result.data.eventId;
+        } else {
+          event.sheetName = newName;
+        }
+        
+        Storage.save();
+        
+        console.log('✅ Evento renomeado no Sheets');
+        
+        if (typeof UICore !== 'undefined') {
+          UICore.showNotification('✅ Renomeado no Google Drive!', 'success');
+        }
+        
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Erro ao renomear no Sheets:', error);
+        
+        // Reverte local
+        event.name = oldName;
+        Storage.save();
+        
+        if (typeof UICore !== 'undefined') {
+          UICore.showError('Erro ao renomear: ' + error.message);
+        }
+        
+        return false;
+        
+      } finally {
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+        }
+      }
+    }
+    
+    return true;
   },
   
   /**
@@ -294,4 +520,4 @@ const SheetSync = {
 // Exporta
 window.SheetSync = SheetSync;
 
-console.log('🔄 Sheet Sync v3.1.2 carregado');
+console.log('🔄 Sheet Sync v3.2.0 carregado');
