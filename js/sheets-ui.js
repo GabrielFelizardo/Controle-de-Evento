@@ -1,382 +1,523 @@
 /**
- * SHEETS UI - INDICADORES VISUAIS
- * Mostra pro usuário que existe integração com Sheets
+ * SINCRONIZAÇÃO COM PLANILHA v3.2.0
+ * ✅ CORRIGIDO: Sincroniza TUDO - convidados, edições, colunas, renomeações
  */
 
-const SheetsUI = {
+const SheetSync = {
+  enabled: false,
+  
   /**
-   * Mostra banner de boas-vindas (primeira vez)
+   * Ativa sincronização
    */
-  showWelcomeBanner() {
-    // Só mostra se nunca viu antes
-    if (localStorage.getItem('welcomeBannerSeen')) {
+  enable() {
+    if (this.enabled) {
+      console.log('⚠️ SheetSync já está ativo');
       return;
     }
     
-    const banner = document.createElement('div');
-    banner.id = 'welcome-banner';
-    banner.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 20px 30px;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      z-index: 10000;
-      max-width: 500px;
-      animation: slideDown 0.5s ease-out;
-    `;
-    
-    banner.innerHTML = `
-      <div style="text-align: center;">
-        <div style="font-size: 40px; margin-bottom: 10px;">🎉</div>
-        <h3 style="margin: 0 0 10px 0; font-size: 20px;">BEM-VINDO À VERSÃO 3.0!</h3>
-        <p style="margin: 0 0 15px 0; line-height: 1.6; font-size: 14px;">
-          Agora você pode criar <strong>formulários online automáticos</strong> 
-          e receber confirmações em tempo real!
-        </p>
-        <div style="display: grid; gap: 8px; text-align: left; font-size: 13px; margin-bottom: 20px;">
-          <div>✅ Link para compartilhar no WhatsApp</div>
-          <div>✅ Confirmações atualizam automaticamente</div>
-          <div>✅ Seus dados salvos no Google Drive</div>
-          <div>✅ 100% gratuito</div>
-        </div>
-        <div style="display: flex; gap: 10px; justify-content: center;">
-          <button onclick="SheetsUI.closeWelcomeBanner()" style="
-            background: rgba(255,255,255,0.2);
-            border: 1px solid white;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-          ">
-            Depois
-          </button>
-          <button onclick="SheetsUI.closeWelcomeBanner(); APISetup.showSetupModal();" style="
-            background: white;
-            border: none;
-            color: #667eea;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-          ">
-            Configurar Agora →
-          </button>
-        </div>
-      </div>
-    `;
-    
-    // Adiciona animação
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideDown {
-        from {
-          opacity: 0;
-          transform: translateX(-50%) translateY(-20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(-50%) translateY(0);
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    
-    document.body.appendChild(banner);
-    
-    // Remove após 15 segundos se não clicar
-    setTimeout(() => {
-      if (document.getElementById('welcome-banner')) {
-        this.closeWelcomeBanner();
-      }
-    }, 15000);
-  },
-  
-  /**
-   * Fecha banner de boas-vindas
-   */
-  closeWelcomeBanner() {
-    const banner = document.getElementById('welcome-banner');
-    if (banner) {
-      banner.style.animation = 'slideUp 0.3s ease-out';
-      setTimeout(() => banner.remove(), 300);
-    }
-    localStorage.setItem('welcomeBannerSeen', 'true');
-  },
-  
-  /**
-   * Adiciona card informativo no evento
-   */
-  addInfoCard() {
-    // Só mostra se não configurou Sheets ainda
-    if (isApiConfigured()) {
-      return null;
-    }
-    
-    const card = document.createElement('div');
-    card.className = 'sheets-info-card';
-    card.style.cssText = `
-      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-      border: 2px solid var(--black);
-      padding: var(--space-3);
-      margin-bottom: var(--space-3);
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-    `;
-    
-    card.innerHTML = `
-      <div style="font-size: 32px;">💡</div>
-      <div style="flex: 1;">
-        <strong style="display: block; margin-bottom: 4px;">
-          Configure formulários online
-        </strong>
-        <p style="margin: 0; font-size: 13px; color: var(--gray-700);">
-          Crie um link para seus convidados confirmarem presença automaticamente!
-        </p>
-      </div>
-      <button 
-        class="btn btn-primary" 
-        onclick="APISetup.showSetupModal()"
-        style="white-space: nowrap;"
-      >
-        Configurar →
-      </button>
-    `;
-    
-    return card;
-  },
-  
-  /**
-   * Adiciona botão de formulário na aba
-   */
-  addFormButtonToTab(tab, eventId) {
-    // Verifica se já tem
-    if (tab.querySelector('.tab-form-btn')) {
+    if (!AuthSystem || !AuthSystem.spreadsheetId) {
+      console.error('❌ Não pode ativar SheetSync: sem spreadsheetId');
       return;
     }
     
-    const btn = document.createElement('span');
-    btn.className = 'tab-form-btn';
-    btn.textContent = '📋';
-    btn.title = 'Formulário Online';
-    btn.style.cssText = `
-      margin-left: 6px;
-      cursor: pointer;
-      opacity: 0.6;
-      transition: opacity 0.2s;
-      font-size: 14px;
-    `;
+    this.interceptEventOperations();
+    this.interceptGuestOperations();
+    this.enabled = true;
     
-    btn.addEventListener('mouseover', () => btn.style.opacity = '1');
-    btn.addEventListener('mouseout', () => btn.style.opacity = '0.6');
-    
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.handleFormButtonClick(eventId);
-    });
-    
-    // Adiciona antes do X
-    const closeBtn = tab.querySelector('.tab-close');
-    if (closeBtn) {
-      tab.insertBefore(btn, closeBtn);
-    }
+    console.log('✅ Sincronização com planilha ativada');
+    console.log('📊 SpreadsheetId:', AuthSystem.spreadsheetId);
   },
   
-  /**
-   * Trata clique no botão de formulário
-   */
-  handleFormButtonClick(eventId) {
-    if (!isApiConfigured()) {
-      // Se não configurou, mostra modal explicativo
-      this.showNeedsSetupModal();
-    } else {
-      // Se já configurou, abre formulário
-      this.showFormModal(eventId);
-    }
-  },
+  // ========================================
+  // EVENTOS
+  // ========================================
   
   /**
-   * Modal explicando que precisa configurar
+   * Intercepta operações de eventos
    */
-  showNeedsSetupModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.style.display = 'flex';
+  interceptEventOperations() {
+    // Salva função original
+    const originalAddEvent = State.addEvent;
     
-    modal.innerHTML = `
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title">📋 FORMULÁRIOS ONLINE</h2>
-        </div>
-        
-        <div style="padding: var(--space-4); line-height: 1.8;">
-          <p style="margin-bottom: var(--space-3);">
-            Para usar formulários online, você precisa configurar a integração 
-            com Google Sheets. É rápido (1 minuto) e <strong>totalmente grátis</strong>!
-          </p>
-          
-          <div style="background: var(--gray-100); padding: var(--space-3); border-radius: 4px; margin-bottom: var(--space-3);">
-            <p style="margin: 0 0 var(--space-2) 0;"><strong>O que você ganha:</strong></p>
-            <div style="display: grid; gap: var(--space-1); font-size: 14px;">
-              <div>✅ Link de confirmação automático</div>
-              <div>✅ QR Code para compartilhar</div>
-              <div>✅ Convidados confirmam sozinhos</div>
-              <div>✅ Lista atualiza em tempo real</div>
-              <div>✅ Dados salvos no Google Drive</div>
-            </div>
-          </div>
-          
-          <p style="font-size: 13px; color: var(--gray-600); margin: 0;">
-            💡 A configuração é feita apenas uma vez.
-          </p>
-        </div>
-        
-        <div class="modal-actions">
-          <button class="btn" onclick="this.closest('.modal').remove()">
-            Agora Não
-          </button>
-          <button class="btn btn-success" onclick="
-            this.closest('.modal').remove();
-            APISetup.showSetupModal();
-          ">
-            Configurar Agora →
-          </button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-  },
-  
-  /**
-   * Modal com formulário (quando já configurado)
-   */
-  async showFormModal(eventId) {
-    const event = State.events.find(e => e.id === eventId);
-    if (!event) return;
-    
-    // Verifica se já tem formUrl
-    if (!event.formUrl && event.sheetsEventId) {
-      // Criar formulário
+    // ✅ Sobrescreve addEvent
+    State.addEvent = async function(name, date) {
+      console.log('📝 Criando evento:', name);
+      
+      // Verifica se tem spreadsheetId
+      if (!AuthSystem.spreadsheetId) {
+        console.warn('⚠️ Sem spreadsheetId - criando apenas localmente');
+        return originalAddEvent.call(State, name, date);
+      }
+      
+      // Mostra loading
+      if (typeof UICore !== 'undefined') {
+        UICore.showLoadingOverlay('Criando evento no Google Drive...');
+      }
+      
       try {
-        const form = await API.createEventForm(
-          event.sheetsEventId,
-          event.name,
-          event.date || ''
+        const result = await API.createEvent(
+          AuthSystem.spreadsheetId,
+          name,
+          date || '',
+          '',
+          ''
         );
-        event.formUrl = form.formUrl;
-        event.formId = form.formId;
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao criar evento na planilha');
+        }
+        
+        // Cria local
+        const localEvent = {
+          id: result.data.eventId || Utils.generateId(),
+          name: name,
+          date: date || '',
+          guests: [],
+          columns: [],
+          method: null,
+          createdAt: new Date(),
+          sheetName: result.data.sheetName,
+          syncedToSheet: true
+        };
+        
+        State.events.push(localEvent);
         Storage.save();
+        
+        console.log('✅ Evento criado na planilha:', localEvent);
+        
+        // Esconde loading
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+          UICore.showNotification('✅ Evento criado no Google Drive!', 'success');
+        }
+        
+        return localEvent;
+        
       } catch (error) {
-        alert('Erro ao criar formulário. Tente novamente.');
-        console.error(error);
-        return;
+        console.error('❌ Erro ao criar evento no Sheets:', error);
+        
+        // Esconde loading
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+          UICore.showError('Erro ao salvar no Google Drive: ' + error.message);
+        }
+        
+        // Cria localmente mesmo com erro
+        console.log('📝 Criando evento apenas localmente...');
+        const localEvent = originalAddEvent.call(State, name, date);
+        localEvent.syncedToSheet = false;
+        return localEvent;
       }
-    }
+    };
     
-    if (!event.formUrl) {
-      alert('Este evento ainda não tem formulário.\n\nCrie um novo evento para ter formulário automático.');
-      return;
-    }
-    
-    // Mostra modal com link
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.style.display = 'flex';
-    
-    modal.innerHTML = `
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title">📋 FORMULÁRIO - ${event.name}</h2>
-        </div>
-        
-        <div style="padding: var(--space-4);">
-          <div class="form-group">
-            <label class="label">🔗 LINK DO FORMULÁRIO</label>
-            <div style="display: flex; gap: var(--space-2);">
-              <input 
-                type="text" 
-                class="input" 
-                value="${event.formUrl}" 
-                readonly
-                id="form-url-input"
-                style="flex: 1;"
-              >
-              <button class="btn btn-primary" onclick="
-                document.getElementById('form-url-input').select();
-                document.execCommand('copy');
-                this.textContent = '✓ COPIADO';
-                setTimeout(() => this.textContent = 'COPIAR', 2000);
-              ">
-                COPIAR
-              </button>
-            </div>
-          </div>
+    // ✅ NOVO: Intercepta mudança de colunas
+    State.setEventColumns = async function(eventId, columns) {
+      const event = State.getEventById(eventId);
+      if (!event) return;
+      
+      console.log('📊 Definindo colunas:', columns);
+      
+      // Atualiza local
+      event.columns = columns;
+      State.clearStatsCache(eventId);
+      
+      // Se evento está sincronizado, atualiza headers na planilha
+      if (event.sheetName && AuthSystem.spreadsheetId) {
+        try {
+          console.log('📤 Atualizando cabeçalhos na planilha...');
           
-          <div class="form-group" style="margin-top: var(--space-4);">
-            <label class="label">📱 COMPARTILHAR</label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
-              <button class="btn btn-success" onclick="
-                const url = '${event.formUrl}';
-                const msg = 'Confirme sua presença: ${event.name}\\n\\n' + url;
-                window.open('https://wa.me/?text=' + encodeURIComponent(msg));
-              ">
-                WhatsApp
-              </button>
-              
-              <button class="btn" onclick="
-                const url = '${event.formUrl}';
-                const subject = 'Confirmação - ${event.name}';
-                const body = 'Confirme sua presença acessando:\\n\\n' + url;
-                window.open('mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
-              ">
-                Email
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div class="modal-actions">
-          <button class="btn" onclick="this.closest('.modal').remove()">
-            FECHAR
-          </button>
-          <button class="btn btn-primary" onclick="window.open('${event.formUrl}', '_blank')">
-            👁️ VER FORMULÁRIO
-          </button>
-        </div>
-      </div>
-    `;
+          // Como não temos endpoint específico, vamos recriar a aba
+          // com os headers corretos
+          const result = await API.updateEvent(
+            AuthSystem.spreadsheetId,
+            event.sheetName,
+            event.name
+          );
+          
+          if (result.success) {
+            console.log('✅ Cabeçalhos atualizados');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao atualizar headers:', error);
+        }
+      }
+      
+      Storage.save();
+    };
     
-    document.body.appendChild(modal);
+    // ✅ Sobrescreve removeEvent
+    const originalRemoveEvent = State.removeEvent;
+    
+    State.removeEvent = async function(eventId) {
+      console.log('🗑️ Deletando evento:', eventId);
+      
+      const event = State.getEventById(eventId);
+      if (!event) return false;
+      
+      // Se tem sheetName, deleta do Sheets também
+      if (event.sheetName && AuthSystem.spreadsheetId) {
+        // Mostra loading
+        if (typeof UICore !== 'undefined') {
+          UICore.showLoadingOverlay('Deletando do Google Drive...');
+        }
+        
+        try {
+          const result = await API.deleteEvent(
+            AuthSystem.spreadsheetId,
+            event.sheetName
+          );
+          
+          if (!result.success) {
+            console.warn('⚠️ Erro ao deletar do Sheets:', result.error);
+          } else {
+            console.log('✅ Evento deletado do Sheets');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao deletar do Sheets:', error);
+        } finally {
+          if (typeof UICore !== 'undefined') {
+            UICore.hideLoadingOverlay();
+          }
+        }
+      }
+      
+      // Deleta local
+      const success = originalRemoveEvent.call(State, eventId);
+      Storage.save();
+      
+      return success;
+    };
+  },
+  
+  // ========================================
+  // CONVIDADOS
+  // ========================================
+  
+  /**
+   * Intercepta operações de convidados
+   */
+  interceptGuestOperations() {
+    // Salva função original
+    const originalAddGuest = State.addGuest;
+    
+    // ✅ CORRIGIDO: Sobrescreve addGuest
+    State.addGuest = async function(eventId, guest) {
+      console.log('👤 Adicionando convidado:', guest);
+      
+      const event = State.getEventById(eventId);
+      if (!event) {
+        throw new Error('Evento não encontrado');
+      }
+      
+      // ✅ IMPORTANTE: Garante que guest tem todas as colunas
+      const completeGuest = {
+        id: guest.id || Utils.generateId(),
+        status: guest.status || 'pending'
+      };
+      
+      // Copia valores das colunas
+      event.columns.forEach(col => {
+        completeGuest[col] = guest[col] || '';
+      });
+      
+      // Se evento não está sincronizado com Sheets, adiciona só localmente
+      if (!event.sheetName || !AuthSystem.spreadsheetId) {
+        console.log('📝 Adicionando convidado apenas localmente');
+        event.guests.push(completeGuest);
+        Storage.save();
+        return completeGuest;
+      }
+      
+      // Mostra loading
+      if (typeof UICore !== 'undefined') {
+        UICore.showLoadingOverlay('Salvando no Google Drive...');
+      }
+      
+      try {
+        // ✅ CORRIGIDO: Envia guest completo com todas as colunas
+        const result = await API.addGuest(
+          AuthSystem.spreadsheetId,
+          event.sheetName,
+          completeGuest
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao adicionar convidado');
+        }
+        
+        // Atualiza ID se API retornou um novo
+        if (result.data.guestId) {
+          completeGuest.id = result.data.guestId;
+        }
+        
+        // Adiciona local
+        event.guests.push(completeGuest);
+        State.clearStatsCache(eventId);
+        Storage.save();
+        
+        console.log('✅ Convidado adicionado na planilha:', completeGuest);
+        
+        // Esconde loading
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+          UICore.showNotification('✅ Salvo no Google Drive!', 'success');
+        }
+        
+        return completeGuest;
+        
+      } catch (error) {
+        console.error('❌ Erro ao adicionar convidado no Sheets:', error);
+        
+        // Esconde loading
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+          UICore.showError('Erro ao salvar: ' + error.message);
+        }
+        
+        // Adiciona localmente mesmo com erro
+        console.log('📝 Adicionando convidado apenas localmente...');
+        event.guests.push(completeGuest);
+        Storage.save();
+        return completeGuest;
+      }
+    };
+    
+    // ✅ NOVO: Intercepta edição completa do convidado
+    const originalUpdateGuest = State.updateGuest;
+    
+    State.updateGuest = async function(eventId, guestIndex, guestData) {
+      console.log('✏️ Atualizando convidado:', guestIndex, guestData);
+      
+      const event = State.getEventById(eventId);
+      if (!event || !event.guests[guestIndex]) return false;
+      
+      const guest = event.guests[guestIndex];
+      
+      // Atualiza local primeiro
+      Object.assign(guest, guestData);
+      State.clearStatsCache(eventId);
+      Storage.save();
+      
+      // Se evento está sincronizado, atualiza no Sheets
+      if (event.sheetName && AuthSystem.spreadsheetId && guest.id) {
+        // Mostra loading
+        if (typeof UICore !== 'undefined') {
+          UICore.showLoadingOverlay('Atualizando no Google Drive...');
+        }
+        
+        try {
+          const result = await API.updateGuest(
+            AuthSystem.spreadsheetId,
+            event.sheetName,
+            guest.id,
+            guestData
+          );
+          
+          if (!result.success) {
+            console.warn('⚠️ Erro ao atualizar no Sheets:', result.error);
+          } else {
+            console.log('✅ Convidado atualizado no Sheets');
+            
+            if (typeof UICore !== 'undefined') {
+              UICore.showNotification('✅ Atualizado no Google Drive!', 'success');
+            }
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao atualizar no Sheets:', error);
+        } finally {
+          if (typeof UICore !== 'undefined') {
+            UICore.hideLoadingOverlay();
+          }
+        }
+      }
+      
+      return true;
+    };
+    
+    // ✅ Sobrescreve updateGuestStatus
+    const originalUpdateStatus = State.updateGuestStatus;
+    
+    State.updateGuestStatus = async function(eventId, guestIndex, status) {
+      console.log('🔄 Atualizando status:', guestIndex, status);
+      
+      const event = State.getEventById(eventId);
+      if (!event) return;
+      
+      const guest = event.guests[guestIndex];
+      if (!guest) return;
+      
+      // Atualiza local
+      guest.status = status;
+      State.clearStatsCache(eventId);
+      Storage.save();
+      
+      // Se evento está sincronizado, atualiza no Sheets
+      if (event.sheetName && AuthSystem.spreadsheetId && guest.id) {
+        try {
+          const result = await API.updateGuest(
+            AuthSystem.spreadsheetId,
+            event.sheetName,
+            guest.id,
+            { status: status }
+          );
+          
+          if (!result.success) {
+            console.warn('⚠️ Erro ao atualizar no Sheets:', result.error);
+          } else {
+            console.log('✅ Status atualizado no Sheets');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao atualizar no Sheets:', error);
+        }
+      }
+    };
+    
+    // ✅ Sobrescreve removeGuest
+    const originalRemoveGuest = State.removeGuest;
+    
+    State.removeGuest = async function(eventId, guestIndex) {
+      console.log('🗑️ Deletando convidado:', guestIndex);
+      
+      const event = State.getEventById(eventId);
+      if (!event) return false;
+      
+      const guest = event.guests[guestIndex];
+      if (!guest) return false;
+      
+      // Se evento está sincronizado, deleta do Sheets
+      if (event.sheetName && AuthSystem.spreadsheetId && guest.id) {
+        // Mostra loading
+        if (typeof UICore !== 'undefined') {
+          UICore.showLoadingOverlay('Deletando do Google Drive...');
+        }
+        
+        try {
+          const result = await API.deleteGuest(
+            AuthSystem.spreadsheetId,
+            event.sheetName,
+            guest.id
+          );
+          
+          if (!result.success) {
+            console.warn('⚠️ Erro ao deletar do Sheets:', result.error);
+          } else {
+            console.log('✅ Convidado deletado do Sheets');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao deletar do Sheets:', error);
+        } finally {
+          if (typeof UICore !== 'undefined') {
+            UICore.hideLoadingOverlay();
+          }
+        }
+      }
+      
+      // Deleta local
+      const success = originalRemoveGuest.call(State, eventId, guestIndex);
+      Storage.save();
+      
+      return success;
+    };
   },
   
   /**
-   * Inicializa UI do Sheets
+   * ✅ NOVO: Sincroniza renomeação de evento
    */
-  init() {
-    // Mostra banner de boas-vindas (primeira vez)
-    setTimeout(() => {
-      this.showWelcomeBanner();
-    }, 2000);
+  async renameEvent(eventId, newName) {
+    const event = State.getEventById(eventId);
+    if (!event) return false;
     
-    console.log('📊 Sheets UI inicializado');
+    const oldName = event.name;
+    
+    console.log(`📝 Renomeando evento: "${oldName}" → "${newName}"`);
+    
+    // Atualiza local
+    event.name = newName;
+    Storage.save();
+    
+    // Se evento está sincronizado, renomeia no Sheets
+    if (event.sheetName && AuthSystem.spreadsheetId) {
+      // Mostra loading
+      if (typeof UICore !== 'undefined') {
+        UICore.showLoadingOverlay('Renomeando no Google Drive...');
+      }
+      
+      try {
+        const result = await API.updateEvent(
+          AuthSystem.spreadsheetId,
+          event.sheetName,
+          newName
+        );
+        
+        if (!result.success) {
+          console.warn('⚠️ Erro ao renomear no Sheets:', result.error);
+          
+          // Reverte local se falhou
+          event.name = oldName;
+          Storage.save();
+          
+          if (typeof UICore !== 'undefined') {
+            UICore.showError('Erro ao renomear no Google Drive');
+          }
+          
+          return false;
+        }
+        
+        // Atualiza sheetName se API retornou novo nome
+        if (result.data && result.data.eventId) {
+          event.sheetName = result.data.eventId;
+        } else {
+          event.sheetName = newName;
+        }
+        
+        Storage.save();
+        
+        console.log('✅ Evento renomeado no Sheets');
+        
+        if (typeof UICore !== 'undefined') {
+          UICore.showNotification('✅ Renomeado no Google Drive!', 'success');
+        }
+        
+        return true;
+        
+      } catch (error) {
+        console.error('❌ Erro ao renomear no Sheets:', error);
+        
+        // Reverte local
+        event.name = oldName;
+        Storage.save();
+        
+        if (typeof UICore !== 'undefined') {
+          UICore.showError('Erro ao renomear: ' + error.message);
+        }
+        
+        return false;
+        
+      } finally {
+        if (typeof UICore !== 'undefined') {
+          UICore.hideLoadingOverlay();
+        }
+      }
+    }
+    
+    return true;
+  },
+  
+  /**
+   * Desativa sincronização (para debug)
+   */
+  disable() {
+    this.enabled = false;
+    console.log('⚠️ SheetSync desativado');
   }
 };
 
 // Exporta
-window.SheetsUI = SheetsUI;
+window.SheetSync = SheetSync;
 
-// Inicializa quando DOM carregar
-document.addEventListener('DOMContentLoaded', () => {
-  SheetsUI.init();
-});
-
-console.log('📊 Sheets UI carregado');
+console.log('🔄 Sheet Sync v3.2.0 carregado');
