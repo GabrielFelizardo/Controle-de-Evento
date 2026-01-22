@@ -1,6 +1,6 @@
 /**
- * API CLIENT v3.1.1
- * ✅ CORRIGIDO: Envia JSON direto
+ * API CLIENT v3.1.2
+ * ✅ CORRIGIDO: Agora envia parâmetro 'columns' corretamente
  */
 
 const API = {
@@ -29,7 +29,6 @@ const API = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
-      // ✅ CORRIGIDO: Payload JSON
       const payload = {
         action: action,
         ...data
@@ -75,18 +74,27 @@ const API = {
     return await this.request('getOrCreateSpreadsheet', { email });
   },
   
+  // ✅ CORRIGIDO: Agora aceita 'columns' como parâmetro
   async createEvent(spreadsheetId, name, date = '', description = '', columns = []) {
-  return await this.request('createEvent', {
-    spreadsheetId,
-    name,
-    date,
-    description,
-    columns 
-  });
- }
+    return await this.request('createEvent', {
+      spreadsheetId,
+      name,
+      date,
+      description,
+      columns  // ✅ ADICIONADO!
+    });
+  },
   
   async listEvents(spreadsheetId) {
     return await this.request('getEvents', { spreadsheetId });
+  },
+  
+  async updateEvent(spreadsheetId, eventId, newName) {
+    return await this.request('updateEvent', { 
+      spreadsheetId, 
+      eventId, 
+      newName 
+    });
   },
   
   async deleteEvent(spreadsheetId, eventId) {
@@ -148,4 +156,4 @@ const API = {
 };
 
 window.API = API;
-console.log('📡 API Client v3.1.1 carregado');
+console.log('📡 API Client v3.1.2 carregado (CORRIGIDO - columns parameter)');
