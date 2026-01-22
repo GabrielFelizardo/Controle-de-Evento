@@ -1,20 +1,7 @@
 /**
- * AUTH SYSTEM v3.1.2
- * ✅ CORRIGIDO: Inicializa App após login
+ * AUTH SYSTEM v3.1.3
+ * ✅ CORRIGIDO: Valida se API está carregada antes de usar
  */
-
-async login(email) {
-  // ✅ VERIFICA SE API ESTÁ DISPONÍVEL
-  if (typeof API === 'undefined') {
-    console.error('❌ API Client não carregado!');
-    this.showError('Erro: Sistema não inicializado corretamente. Recarregue a página.');
-    return false;
-  }
-  
-  if (!email || !this.validateEmail(email)) {
-    this.showError('Email inválido!');
-    return false;
-  }
 
 const AuthSystem = {
   currentUser: null,
@@ -22,7 +9,14 @@ const AuthSystem = {
   spreadsheetId: null,
   
   init() {
-    console.log('🔐 Auth System v3.1.2 iniciando...');
+    console.log('🔐 Auth System v3.1.3 iniciando...');
+    
+    // ✅ VALIDA SE API ESTÁ CARREGADA
+    if (typeof API === 'undefined') {
+      console.error('❌ API Client não foi carregado!');
+      alert('Erro crítico: Sistema não inicializado. Recarregue a página (F5)');
+      return;
+    }
     
     try {
       this.loadSavedUser();
@@ -69,7 +63,6 @@ const AuthSystem = {
         this.isAuthenticated = true;
         this.spreadsheetId = response.data.spreadsheetId;
         
-        // ✅ NOVO: Salva spreadsheetId no localStorage também
         localStorage.setItem('spreadsheetId', this.spreadsheetId);
         
         console.log('✅ Auto-login bem-sucedido');
@@ -90,6 +83,13 @@ const AuthSystem = {
   },
   
   async login(email) {
+    // ✅ VALIDA SE API ESTÁ DISPONÍVEL
+    if (typeof API === 'undefined') {
+      console.error('❌ API Client não carregado!');
+      this.showError('Erro: Sistema não inicializado. Recarregue a página (F5)');
+      return false;
+    }
+    
     if (!email || !this.validateEmail(email)) {
       this.showError('Email inválido!');
       return false;
@@ -110,11 +110,9 @@ const AuthSystem = {
         this.isAuthenticated = true;
         this.spreadsheetId = response.data.spreadsheetId;
         
-        // Salva no localStorage
         localStorage.setItem('auth_user', JSON.stringify(this.currentUser));
         localStorage.setItem('spreadsheetId', this.spreadsheetId);
         
-        // ✅ NOVO: Adiciona email ao histórico
         this.addToEmailHistory(email);
         
         console.log('✅ Login bem-sucedido:', email);
@@ -146,7 +144,6 @@ const AuthSystem = {
       localStorage.removeItem('auth_user');
       localStorage.removeItem('spreadsheetId');
       
-      // ✅ NOVO: Desativa SheetSync
       if (typeof SheetSync !== 'undefined') {
         SheetSync.disable();
       }
@@ -183,20 +180,12 @@ const AuthSystem = {
     }
   },
   
-  // ✅ NOVO: Histórico de emails
   addToEmailHistory(email) {
     try {
       let history = JSON.parse(localStorage.getItem('email_history') || '[]');
-      
-      // Remove duplicatas
       history = history.filter(e => e !== email);
-      
-      // Adiciona no início
       history.unshift(email);
-      
-      // Limita a 5
       history = history.slice(0, 5);
-      
       localStorage.setItem('email_history', JSON.stringify(history));
     } catch (error) {
       console.warn('⚠️ Erro ao salvar histórico de emails:', error);
@@ -211,14 +200,11 @@ const AuthSystem = {
     }
   },
   
-  // UI METHODS
-  
   showLoginScreen() {
     const loginScreen = document.getElementById('login-screen');
     if (loginScreen) {
       loginScreen.classList.add('active');
       
-      // ✅ NOVO: Adiciona datalist com histórico
       setTimeout(() => {
         this.addEmailDatalist();
         const emailInput = document.getElementById('email-input');
@@ -227,7 +213,6 @@ const AuthSystem = {
     }
   },
   
-  // ✅ NOVO: Adiciona datalist com histórico de emails
   addEmailDatalist() {
     const emailInput = document.getElementById('email-input');
     if (!emailInput) return;
@@ -235,11 +220,9 @@ const AuthSystem = {
     const history = this.getEmailHistory();
     if (history.length === 0) return;
     
-    // Remove datalist anterior se existir
     const oldDatalist = document.getElementById('email-history-datalist');
     if (oldDatalist) oldDatalist.remove();
     
-    // Cria novo datalist
     const datalist = document.createElement('datalist');
     datalist.id = 'email-history-datalist';
     
@@ -270,7 +253,6 @@ const AuthSystem = {
     
     this.updateUserInfo();
     
-    // ✅ CORRIGIDO: Inicializa app DEPOIS de mostrar interface
     if (typeof App !== 'undefined' && App.init) {
       setTimeout(() => {
         console.log('🚀 Inicializando App após login...');
@@ -395,4 +377,4 @@ const AuthSystem = {
 };
 
 window.AuthSystem = AuthSystem;
-console.log('🔐 Auth System v3.1.2 carregado');
+console.log('🔐 Auth System v3.1.3 carregado');
