@@ -3,6 +3,19 @@
  * ✅ CORRIGIDO: Inicializa App após login
  */
 
+async login(email) {
+  // ✅ VERIFICA SE API ESTÁ DISPONÍVEL
+  if (typeof API === 'undefined') {
+    console.error('❌ API Client não carregado!');
+    this.showError('Erro: Sistema não inicializado corretamente. Recarregue a página.');
+    return false;
+  }
+  
+  if (!email || !this.validateEmail(email)) {
+    this.showError('Email inválido!');
+    return false;
+  }
+
 const AuthSystem = {
   currentUser: null,
   isAuthenticated: false,
