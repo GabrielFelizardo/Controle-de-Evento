@@ -89,11 +89,13 @@ const API = {
     return await this.request('getEvents', { spreadsheetId });
   },
   
-  async updateEvent(spreadsheetId, eventId, newName) {
+  // ✅ ATUALIZADO: Aceita newColumns
+  async updateEvent(spreadsheetId, eventId, newName, newColumns = null) {
     return await this.request('updateEvent', { 
       spreadsheetId, 
       eventId, 
-      newName 
+      newName,
+      newColumns // Envia as novas colunas
     });
   },
   
